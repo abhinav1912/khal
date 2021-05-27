@@ -7,10 +7,11 @@ import errno
 import os
 import uuid
 from hashlib import sha1
-from typing import Optional, Tuple, Iterable  # noqa
-from ..custom_types import SupportsRaw
+from typing import Iterable, Optional, Tuple, Union  # noqa
 
 from atomicwrites import atomic_write
+
+from ..custom_types import SupportsRaw
 
 
 class cached_property:
@@ -30,13 +31,13 @@ class cached_property:
         return result
 
 
-def to_unicode(x, encoding='ascii'):
+def to_unicode(x: Union[str, bytes], encoding='ascii'):
     if not isinstance(x, str):
         return x.decode(encoding)
     return x
 
 
-def to_bytes(x, encoding='ascii'):
+def to_bytes(x: Union[str, bytes], encoding='ascii'):
     if not isinstance(x, bytes):
         return x.encode(encoding)
     return x
@@ -184,7 +185,7 @@ class VdirBase:
         kwargs['path'] = path
         return kwargs
 
-    def _get_filepath(self, href):
+    def _get_filepath(self, href) -> str:
         return os.path.join(self.path, href)
 
     def _get_href(self, uid):
