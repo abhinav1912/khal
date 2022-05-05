@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# noqa: E265
 #
 # khal documentation build configuration file, created by
 # sphinx-quickstart on Fri Jul  4 00:00:47 2014.
@@ -41,20 +41,19 @@ def write_section(specsection, secname, key, comment, output):
     # why is _parse_check a "private" method? seems to be rather useful...
     # we don't need fun_kwargs
     fun_name, fun_args, fun_kwargs, default = validator._parse_check(specsection)
-    output.write('\n.. _{}-{}:'.format(secname, key))
+    output.write(f'\n.. _{secname}-{key}:')
     output.write('\n')
-    output.write('\n.. object:: {}\n'.format(key))
+    output.write(f'\n.. object:: {key}\n')
     output.write('\n')
     output.write('    ' + '\n    '.join([line.strip('# ') for line in comment]))
     output.write('\n')
     if fun_name == 'option':
-        fun_args = ['*{}*'.format(arg) for arg in fun_args]
+        fun_args = [f'*{arg}*' for arg in fun_args]
         fun_args = fun_args[:-2] + [fun_args[-2] + ' and ' + fun_args[-1]]
-        fun_name += ', allowed values are {}'.format(', '.join(fun_args))
+        fun_name += f", allowed values are {', '.join(fun_args)}"
         fun_args = []
     if fun_name == 'integer' and len(fun_args) == 2:
-        fun_name += ', allowed values are between {} and {}'.format(
-            fun_args[0], fun_args[1])
+        fun_name += f', allowed values are between {fun_args[0]} and {fun_args[1]}'
         fun_args = []
     output.write('\n')
     if fun_name in ['expand_db_path', 'expand_path']:
@@ -65,20 +64,20 @@ def write_section(specsection, secname, key, comment, output):
             default = ['space' if one == ' ' else one for one in default]
             default = ', '.join(default)
 
-    output.write('      :type: {}'.format(fun_name))
+    output.write(f'      :type: {fun_name}')
     output.write('\n')
     if fun_args != []:
-        output.write('      :args: {}'.format(fun_args))
+        output.write(f'      :args: {fun_args}')
         output.write('\n')
-    output.write('      :default: {}'.format(default))
+    output.write(f'      :default: {default}')
     output.write('\n')
 
 
 with open('configspec.rst', 'w') as f:
     for secname in sorted(spec):
         f.write('\n')
-        heading = 'The [{}] section'.format(secname)
-        f.write('{}\n{}'.format(heading, len(heading) * '~'))
+        heading = f'The [{secname}] section'
+        f.write(f'{heading}\n{ len(heading) * "~"}')
         f.write('\n')
         comment = spec.comments[secname]
         f.write('\n'.join([line[2:] for line in comment]))
@@ -188,7 +187,6 @@ html_theme = 'alabaster'
 html_theme_options = {
     'github_user': 'pimutils',
     'github_repo': 'khal',
-    'travis_button': 'true',
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
@@ -271,49 +269,6 @@ html_show_sourcelink = False
 
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'khaldoc'
-
-
-# -- Options for LaTeX output ---------------------------------------------
-
-latex_elements = {
-    # The paper size ('letterpaper' or 'a4paper').
-    #'papersize': 'letterpaper',
-
-    # The font size ('10pt', '11pt' or '12pt').
-    #'pointsize': '10pt',
-
-    # Additional stuff for the LaTeX preamble.
-    #'preamble': '',
-}
-
-# Grouping the document tree into LaTeX files. List of tuples
-# (source start file, target name, title,
-#  author, documentclass [howto, manual, or own class]).
-latex_documents = [
-    ('index', 'khal.tex', 'khal Documentation',
-     'Christan Geier et al.', 'manual'),
-]
-
-# The name of an image file (relative to this directory) to place at the top of
-# the title page.
-#latex_logo = None
-
-# For "manual" documents, if this is true, then toplevel headings are parts,
-# not chapters.
-#latex_use_parts = False
-
-# If true, show page references after internal links.
-#latex_show_pagerefs = False
-
-# If true, show URL addresses after external links.
-#latex_show_urls = False
-
-# Documents to append as an appendix to all manuals.
-#latex_appendices = []
-
-# If false, no module index is generated.
-#latex_domain_indices = True
-
 
 # -- Options for manual page output ---------------------------------------
 

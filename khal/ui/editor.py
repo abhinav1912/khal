@@ -30,7 +30,7 @@ from .widgets import (AlarmsEditor, Choice, DateConversionError, DateWidget,
                       TimeWidget, ValidatedEdit)
 
 
-class StartEnd(object):
+class StartEnd:
 
     def __init__(self, startdate, starttime, enddate, endtime):
         """collecting some common properties"""
@@ -338,7 +338,9 @@ class EventEditor(urwid.WidgetWrap):
 
         self.description = event.description
         self.location = event.location
+        self.attendees = event.attendees
         self.categories = event.categories
+        self.url = event.url
         self.startendeditor = StartEndEditor(
             event.start_local, event.end_local, self._conf,
             self.start_datechange, self.end_datechange,
@@ -364,17 +366,28 @@ class EventEditor(urwid.WidgetWrap):
         )
         self.description = urwid.AttrMap(
             ExtendedEdit(
-                caption=('', 'Description: '),
+                caption=('', 'Description:  '),
                 edit_text=self.description,
                 multiline=True
             ),
             'edit'
         )
         self.location = urwid.AttrMap(ExtendedEdit(
-            caption=('', 'Location:    '), edit_text=self.location), 'edit'
+            caption=('', 'Location:     '), edit_text=self.location), 'edit'
         )
         self.categories = urwid.AttrMap(ExtendedEdit(
-            caption=('', 'Categories:  '), edit_text=self.categories), 'edit'
+            caption=('', 'Categories:   '), edit_text=self.categories), 'edit'
+        )
+        self.attendees = urwid.AttrMap(
+            ExtendedEdit(
+                caption=('', 'Attendees: '),
+                edit_text=self.attendees,
+                multiline=True
+            ),
+            'edit'
+        )
+        self.url = urwid.AttrMap(ExtendedEdit(
+            caption=('', 'URL:         '), edit_text=self.url), 'edit'
         )
         self.alarms = AlarmsEditor(self.event)
         self.pile = NListBox(urwid.SimpleFocusListWalker([
@@ -384,6 +397,9 @@ class EventEditor(urwid.WidgetWrap):
             self.location,
             self.categories,
             self.description,
+            self.url,
+            divider,
+            self.attendees,
             divider,
             self.startendeditor,
             self.recurrenceeditor,
@@ -405,7 +421,7 @@ class EventEditor(urwid.WidgetWrap):
 
     @property
     def title(self):  # Window title
-        return 'Edit: {}'.format(get_wrapped_text(self.summary))
+        return f'Edit: {get_wrapped_text(self.summary)}'
 
     @classmethod
     def selectable(cls):
@@ -421,6 +437,10 @@ class EventEditor(urwid.WidgetWrap):
             return True
         if get_wrapped_text(self.categories) != self.event.categories:
             return True
+        if get_wrapped_text(self.url) != self.event.url:
+            return True
+        if get_wrapped_text(self.attendees) != self.event.attendees:
+            return True
         if self.startendeditor.changed or self.calendar_chooser.changed:
             return True
         if self.recurrenceeditor.changed:
@@ -433,7 +453,9 @@ class EventEditor(urwid.WidgetWrap):
         self.event.update_summary(get_wrapped_text(self.summary))
         self.event.update_description(get_wrapped_text(self.description))
         self.event.update_location(get_wrapped_text(self.location))
+        self.event.update_attendees(get_wrapped_text(self.attendees).split(','))
         self.event.update_categories(get_wrapped_text(self.categories).split(','))
+        self.event.update_url(get_wrapped_text(self.url))
 
         if self.startendeditor.changed:
             self.event.update_start_end(
@@ -602,12 +624,9 @@ class RecurrenceEditor(urwid.WidgetWrap):
     def _rebuild_monthly_choice(self):
         weekday, xth = get_weekday_occurrence(self._startdt)
         ords = {1: 'st', 2: 'nd', 3: 'rd', 21: 'st', 22: 'nd', 23: 'rd', 31: 'st'}
-        self._xth_weekday = 'on every {}{} {}'.format(
-            xth, ords.get(xth, 'th'), WEEKDAYS[weekday],
-        )
-        self._xth_monthday = 'on every {}{} of the month'.format(
-            self._startdt.day, ords.get(self._startdt.day, 'th'),
-        )
+        self._xth_weekday = f"on every {xth}{ords.get(xth, 'th')} {WEEKDAYS[weekday]}"
+        self._xth_monthday = (f"on every {self._startdt.day}"
+                              f"{ords.get(self._startdt.day, 'th')} of the month")
         self.monthly_choice = Choice(
             [self._xth_monthday, self._xth_weekday], self._xth_monthday, callback=self.rebuild,
         )
@@ -716,7 +735,7 @@ class RecurrenceEditor(urwid.WidgetWrap):
         return self._rrule != self.rrule()  # TODO do this properly
 
     def rrule(self):
-        rrule = dict()
+        rrule = {}
         rrule['freq'] = [self.recurrence_choice.active]
         interval = int(self.interval_edit.get_edit_text())
         if interval != 1:
@@ -725,7 +744,7 @@ class RecurrenceEditor(urwid.WidgetWrap):
             rrule['byday'] = self.weekday_checks.days
         if rrule['freq'] == ['monthly'] and self.monthly_choice.active == self._xth_weekday:
             weekday, occurrence = get_weekday_occurrence(self._startdt)
-            rrule['byday'] = ['{}{}'.format(occurrence, WEEKDAYS[weekday])]
+            rrule['byday'] = [f'{occurrence}{WEEKDAYS[weekday]}']
         if self.until_choice.active == 'Until':
             if isinstance(self._startdt, dt.datetime):
                 rrule['until'] = dt.datetime.combine(

@@ -1,15 +1,16 @@
-import icalendar
 import random
 import textwrap
 
+import icalendar
+
 from khal.icalendar import split_ics
 
-from .utils import (LOCALE_BERLIN, _get_text, normalize_component)
+from .utils import LOCALE_BERLIN, _get_text, normalize_component
 
 
 def _get_TZIDs(lines):
     """from a list of strings, get all unique strings that start with TZID"""
-    return sorted((line for line in lines if line.startswith('TZID')))
+    return sorted(line for line in lines if line.startswith('TZID'))
 
 
 def test_normalize_component():
@@ -78,3 +79,11 @@ def test_windows_timezone(caplog):
     cal = _get_text("tz_windows_format")
     split_ics(cal)
     assert "Cannot find timezone `Pacific/Auckland`" not in caplog.text
+
+
+def test_split_ics_without_uid():
+    cal = _get_text('without_uid')
+    vevents = split_ics(cal)
+    assert vevents
+    vevents2 = split_ics(cal)
+    assert vevents[0] == vevents2[0]

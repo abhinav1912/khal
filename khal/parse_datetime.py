@@ -29,7 +29,8 @@ from calendar import isleap
 from time import strptime
 
 import pytz
-from khal.exceptions import FatalError, DateTimeParseError
+
+from khal.exceptions import DateTimeParseError, FatalError
 
 logger = logging.getLogger('khal')
 
@@ -237,11 +238,10 @@ def guessdatetimefstr(dtime_list, locale, default_day=None, in_future=True):
         else:
             return dtstart, all_day
     raise DateTimeParseError(
-        "Could not parse \"{}\".\nPlease check your configuration or run "
-        "`khal printformats` to see if this does match your configured "
+        f"Could not parse \"{dtime_list}\".\nPlease check your configuration "
+        "or run `khal printformats` to see if this does match your configured "
         "[long](date|time|datetime)format.\nIf you suspect a bug, please "
         "file an issue at https://github.com/pimutils/khal/issues/ "
-        "".format(dtime_list)
     )
 
 
@@ -295,7 +295,7 @@ def guesstimedeltafstr(delta_string):
             numint = int(num)
         except ValueError:
             raise DateTimeParseError(
-                'Invalid number in timedelta string "%s": "%s"' % (delta_string, num))
+                f'Invalid number in timedelta string "{delta_string}": "{num}"')
 
         ulower = unit.lower().strip()
         if ulower == 'd' or ulower == 'day' or ulower == 'days':
@@ -407,20 +407,24 @@ def guessrangefstr(daterange, locale,
             pass
 
     raise DateTimeParseError(
-        "Could not parse \"{}\".\nPlease check your configuration or run "
-        "`khal printformats` to see if this does match your configured "
+        f"Could not parse \"{daterange}\".\nPlease check your configuration or "
+        "run `khal printformats` to see if this does match your configured "
         "[long](date|time|datetime)format.\nIf you suspect a bug, please "
         "file an issue at https://github.com/pimutils/khal/issues/ "
-        "".format(daterange)
     )
 
 
-def rrulefstr(repeat, until, locale):
+def rrulefstr(repeat, until, locale, timezone):
     if repeat in ["daily", "weekly", "monthly", "yearly"]:
         rrule_settings = {'freq': repeat}
         if until:
             until_dt, is_date = guessdatetimefstr(until.split(' '), locale)
-            rrule_settings['until'] = until_dt
+            if timezone:
+                rrule_settings['until'] = until_dt.\
+                    replace(tzinfo=timezone).\
+                    astimezone(pytz.UTC)
+            else:
+                rrule_settings['until'] = until_dt
         return rrule_settings
     else:
         logger.fatal("Invalid value for the repeat option. \
@@ -475,11 +479,11 @@ def eventinfofstr(info_string, locale, default_event_duration, default_dayevent_
 
     if start is None or end is None:
         raise DateTimeParseError(
-            "Could not parse \"{}\".\nPlease check your configuration or run "
-            "`khal printformats` to see if this does match your configured "
-            "[long](date|time|datetime)format.\nIf you suspect a bug, please "
-            "file an issue at https://github.com/pimutils/khal/issues/ "
-            "".format(info_string)
+            f"Could not parse \"{info_string}\".\nPlease check your "
+            "configuration or run `khal printformats` to see if this does "
+            "match your configured [long](date|time|datetime)format.\nIf you "
+            "suspect a bug, please file an issue at "
+            "https://github.com/pimutils/khal/issues/ "
         )
 
     if tz is None:

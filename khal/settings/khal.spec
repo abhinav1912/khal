@@ -31,10 +31,10 @@ path = expand_path(default=None)
 # hexadecimal value of the red, green and blue component, respectively.
 # When using a 24-bit color, make sure to enclose the color value in ' or "!
 # If `color` is set to *auto* (the default), khal looks for a color value in a
-# *color* file in this calendar's vdir. If the *color* file does not exist, the 
-# default_color (see below) is used. If color is set to '', the default_color is 
-# always used. Note that you can use `vdirsyncer metasync` to synchronize colors 
-# with your caldav server. 
+# *color* file in this calendar's vdir. If the *color* file does not exist, the
+# default_color (see below) is used. If color is set to '', the default_color is
+# always used. Note that you can use `vdirsyncer metasync` to synchronize colors
+# with your caldav server.
 
 color = color(default='auto')
 
@@ -124,7 +124,7 @@ longdatetimeformat = string(default='%c')
 # weeknumbers, so will only work properly if `firstweekday` is set to 0
 weeknumbers = weeknumbers(default='off')
 
-# Keybindings for :command:`ikhal` are set here. You can bind more then one key
+# Keybindings for :command:`ikhal` are set here. You can bind more than one key
 # (combination) to a command by supplying a comma-separated list of keys.
 # For binding key combinations concatenate them keys (with a space in
 # between), e.g. **ctrl n**.
@@ -234,7 +234,7 @@ event_view_weighting = integer(default=1)
 # Set to true to always show the event view window when looking at the event list
 event_view_always_visible = boolean(default=False)
 
-# Add a blank line before the name of the day (khal only) 
+# Add a blank line before the name of the day (khal only)
 blank_line_before_day = boolean(default=False)
 
 # Choose a color theme for khal.
@@ -273,12 +273,12 @@ bold_for_light_color = boolean(default=True)
 # ignored in `ikhal`, where events will always be shown in the color of the
 # calendar they belong to.
 # The syntax is the same as for :option:`--format`.
-agenda_event_format = string(default='{calendar-color}{cancelled}{start-end-time-style} {title}{repeat-symbol}{description-separator}{description}{reset}')
+agenda_event_format = string(default='{calendar-color}{cancelled}{start-end-time-style} {title}{repeat-symbol}{alarm-symbol}{description-separator}{description}{reset}')
 
 # Specifies how each *day header* is formatted.
 agenda_day_format = string(default='{bold}{name}, {date-long}{reset}')
 
-# Display month name on row when the week contains the first day of
+# Display month name on row when the week contains the first day
 # of the month ('firstday') or when the first day of the week is in the
 # month ('firstfullweek')
 monthdisplay = monthdisplay(default='firstday')
@@ -288,7 +288,7 @@ monthdisplay = monthdisplay(default='firstday')
 # but :command:`list` and :command:`calendar`. It is therefore probably a
 # sensible choice to include the start- and end-date.
 # The syntax is the same as for :option:`--format`.
-event_format = string(default='{calendar-color}{cancelled}{start}-{end} {title}{repeat-symbol}{description-separator}{description}{reset}')
+event_format = string(default='{calendar-color}{cancelled}{start}-{end} {title}{repeat-symbol}{alarm-symbol}{description-separator}{description}{reset}')
 
 # When highlight_event_days is enabled, this section specifies how
 # the highlighting/coloring of days is handled.

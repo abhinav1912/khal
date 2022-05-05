@@ -8,9 +8,28 @@ may want to subscribe to `GitHub's tag feed
 <https://github.com/geier/khal/tags.atom>`_.
 
 
-0.10.3
+0.10.5
 ======
 not released
+* NEW Add widget to interactive event editor that allows adding attendees as
+  comma separated list of email addresses
+
+* NEW Add support for Python 3.10
+
+0.10.4
+======
+2021-07-29
+
+* DROPPED support for Python 3.5
+* CHANGE ikhal: tab (and shift tab) jump from the events back to the calendar
+* NEW Add symbol for events with at least one alarm
+* FIX URL can now be set/updated from ikhal
+* FIX Imported events without an end or duration will now last one day if
+   `DTSTART` is a date (as per RFC) or one hour if it is a datetime.
+
+0.10.3
+======
+2021-04-27
 
 * DROPPED support for Python 3.4
 * FIX `khal interactive` now accepts -a/-d options (as documented)
@@ -24,6 +43,7 @@ not released
    `blank_line_before_day` option
 * FIX `new` keybinding in search no longer crash `ikhal`
 * NEW Improved sorting of events. Sort by `DTSTART`, `DTEND` then `SUMMARY`.
+* NEW Add url input and `{url}` template option
 
 0.10.2
 ======
@@ -31,15 +51,15 @@ not released
 
 * NEW Parse `X-ANNIVERSARY`, `ANNIVERSARY` and `X-ABDATE` fields from vcards
 * NEW Add ability to change default event duration with
-   `default_event_duration` and `default_dayevent_duration` for an day-long 
+   `default_event_duration` and `default_dayevent_duration` for a day-long
    event
 * NEW Add `{uid}` property to template options in `--format`
 * FIX No warning when importing event with Windows timezone format
 * FIX Launching an external editor no longer crashes `ikhal`
 * UPDATED DEPENDENCY urwid>=1.3.0
-* FIX Wrong left pane width calculation in ikal when `frame` is `width` or 
+* FIX Wrong left pane width calculation in ikal when `frame` is `width` or
    `color` in configuration.
-* CHANGE Remove check for timezones in `UNTIL` that aren't in `DTSTART` and 
+* CHANGE Remove check for timezones in `UNTIL` that aren't in `DTSTART` and
    vice-versa. The check wasn't fulfilling its purpose and was raising warnings
    when no `UNTIL` value was set.
 

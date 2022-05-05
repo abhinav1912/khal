@@ -1,8 +1,10 @@
 import datetime as dt
 
 import icalendar
-from khal import icalendar as icalendar_helpers, utils
 import pytz
+
+from khal import icalendar as icalendar_helpers
+from khal import utils
 
 from .utils import _get_text, _get_vevent_file
 
@@ -230,7 +232,7 @@ def _get_vevent(event):
             return component
 
 
-class TestExpand(object):
+class TestExpand:
     dtstartend_berlin = [
         (berlin.localize(dt.datetime(2013, 3, 1, 14, 0, )),
          berlin.localize(dt.datetime(2013, 3, 1, 16, 0, ))),
@@ -370,7 +372,7 @@ class TestExpand(object):
         ]
 
 
-class TestExpandNoRR(object):
+class TestExpandNoRR:
     dtstartend_berlin = [
         (berlin.localize(dt.datetime(2013, 3, 1, 14, 0)),
          berlin.localize(dt.datetime(2013, 3, 1, 16, 0))),
@@ -575,7 +577,7 @@ END:VEVENT
 """
 
 
-class TestSpecial(object):
+class TestSpecial:
     """collection of strange test cases that don't fit anywhere else really"""
 
     def test_count(self):
@@ -718,7 +720,7 @@ UID:datetime123
 END:VEVENT"""
 
 
-class TestRDate(object):
+class TestRDate:
     """Testing expanding of recurrence rules"""
     def test_simple_rdate(self):
         vevent = _get_vevent(simple_rdate)
@@ -780,7 +782,7 @@ END:VCALENDAR
 """
 
 
-class TestSanitize(object):
+class TestSanitize:
 
     def test_noend_date(self):
         vevent = _get_vevent(noend_date)
@@ -791,8 +793,8 @@ class TestSanitize(object):
     def test_noend_datetime(self):
         vevent = _get_vevent(noend_datetime)
         vevent = icalendar_helpers.sanitize(vevent, berlin, '', '')
-        assert vevent['DTSTART'].dt == dt.date(2014, 8, 29)
-        assert vevent['DTEND'].dt == dt.date(2014, 8, 30)
+        assert vevent['DTSTART'].dt == BERLIN.localize(dt.datetime(2014, 8, 29, 8))
+        assert vevent['DTEND'].dt == BERLIN.localize(dt.datetime(2014, 8, 29, 9))
 
     def test_duration(self):
         vevent = _get_vevent_file('event_dtr_exdatez')

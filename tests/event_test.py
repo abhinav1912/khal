@@ -3,7 +3,8 @@ import datetime as dt
 import pytest
 import pytz
 from freezegun import freeze_time
-from icalendar import vRecur, vText
+from icalendar import Parameters, vCalAddress, vRecur, vText
+
 from khal.khalendar.event import (AllDayEvent, Event, FloatingEvent,
                                   LocalizedEvent, create_timezone)
 
@@ -56,6 +57,17 @@ def test_update_simple():
     assert normalize_component(event.raw) == normalize_component(event_updated.raw)
 
 
+def test_add_url():
+    event = Event.fromString(_get_text('event_dt_simple'), **EVENT_KWARGS)
+    event.update_url('https://github.com/pimutils/khal')
+    assert 'URL:https://github.com/pimutils/khal' in event.raw
+
+
+def test_get_url():
+    event = Event.fromString(_get_text('event_dt_url'), **EVENT_KWARGS)
+    assert event.url == "https://github.com/pimutils/khal"
+
+
 def test_no_end():
     """reading an event with neither DTEND nor DURATION"""
     event = Event.fromString(_get_text('event_dt_no_end'), **EVENT_KWARGS)
@@ -77,6 +89,12 @@ def test_do_not_save_empty_description():
     assert 'DESCRIPTION' not in event.raw
 
 
+def test_do_not_save_empty_url():
+    event = Event.fromString(_get_text('event_dt_simple'), **EVENT_KWARGS)
+    event.update_url('')
+    assert 'URL' not in event.raw
+
+
 def test_remove_existing_location_if_set_to_empty():
     event = Event.fromString(_get_text('event_dt_simple_updated'), **EVENT_KWARGS)
     event.update_location('')
@@ -87,6 +105,12 @@ def test_remove_existing_description_if_set_to_empty():
     event = Event.fromString(_get_text('event_dt_simple_updated'), **EVENT_KWARGS)
     event.update_description('')
     assert 'DESCRIPTION' not in event.raw
+
+
+def test_remove_existing_url_if_set_to_empty():
+    event = Event.fromString(_get_text('event_dt_url'), **EVENT_KWARGS)
+    event.update_url('')
+    assert 'URL' not in event.raw
 
 
 def test_update_remove_categories():
@@ -454,6 +478,41 @@ def test_event_alarm():
     assert event.alarms == []
     event.update_alarms([(dt.timedelta(-1, 82800), 'new event')])
     assert event.alarms == [(dt.timedelta(-1, 82800), vText('new event'))]
+
+
+def test_event_attendees():
+    event = Event.fromString(_get_text('event_dt_simple'), **EVENT_KWARGS)
+    assert event.attendees == ""
+    event.update_attendees(["this-does@not-exist.de", ])
+    assert event.attendees == "this-does@not-exist.de"
+    assert isinstance(event._vevents[event.ref].get('ATTENDEE', []), list)
+    assert isinstance(event._vevents[event.ref].get('ATTENDEE', [])[0], vCalAddress)
+    assert str(event._vevents[event.ref].get('ATTENDEE', [])[0]) == "MAILTO:this-does@not-exist.de"
+
+    event.update_attendees(["this-does@not-exist.de", "also-does@not-exist.de"])
+    assert event.attendees == "this-does@not-exist.de, also-does@not-exist.de"
+
+    assert isinstance(event._vevents[event.ref].get('ATTENDEE', []), list)
+    assert len(event._vevents[event.ref].get('ATTENDEE', [])) == 2
+    assert isinstance(event._vevents[event.ref].get('ATTENDEE', [])[0], vCalAddress)
+
+    # test if parameters from existing vCalAddress objects will be preserved
+    new_address = vCalAddress("MAILTO:mail.address@not-exist.de")
+    new_address.params = Parameters(
+        {'CN': 'Real Name',
+         'PARTSTAT': 'NEEDS-ACTION',
+         'ROLE': 'REQ-PARTICIPANT',
+         'RSVP': 'TRUE'}
+    )
+    event._vevents[event.ref]['ATTENDEE'] = [new_address, ]
+    event.update_attendees(["another.mailaddress@not-exist.de", "mail.address@not-exist.de"])
+    assert event.attendees == "mail.address@not-exist.de, another.mailaddress@not-exist.de"
+    address = [a for a in event._vevents[event.ref].get('ATTENDEE', [])
+               if str(a) == "MAILTO:mail.address@not-exist.de"]
+    assert len(address) == 1
+    address = address[0]
+    assert address.params.get('CN', None) is not None
+    assert address.params['CN'] == "Real Name"
 
 
 def test_create_timezone_static():

@@ -1,10 +1,12 @@
 import datetime as dt
 import os
+import re
 import sys
 
 import pytest
 from click.testing import CliRunner
 from freezegun import freeze_time
+
 from khal.cli import main_ikhal, main_khal
 
 from .utils import _get_ics_filepath, _get_text
@@ -20,11 +22,11 @@ class CustomCliRunner(CliRunner):
         self.xdg_config_home = xdg_config_home
         self.tmpdir = tmpdir
 
-        super(CustomCliRunner, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def invoke(self, cli, args=None, *a, **kw):
         args = ['-c', str(self.config_file)] + (args or [])
-        return super(CustomCliRunner, self).invoke(cli, args, *a, **kw)
+        return super().invoke(cli, args, *a, **kw)
 
 
 @pytest.fixture
@@ -58,7 +60,7 @@ def runner(tmpdir, monkeypatch):
             print_new=print_new,
             dbpath=str(db), **kwargs))
         runner = CustomCliRunner(
-            config_file=config_file, db=db, calendars=dict(one=calendar),
+            config_file=config_file, db=db, calendars={"one": calendar},
             xdg_data_home=xdg_data_home, xdg_config_home=xdg_config_home,
             tmpdir=tmpdir,
         )
@@ -130,7 +132,7 @@ def test_simple(runner):
 
     now = dt.datetime.now().strftime('%d.%m.%Y')
     result = runner.invoke(
-        main_khal, 'new {} 18:00 myevent'.format(now).split())
+        main_khal, f'new {now} 18:00 myevent'.split())
     assert result.output == ''
     assert not result.exception
 
@@ -146,7 +148,7 @@ def test_simple(runner):
 def test_simple_color(runner):
     runner = runner(days=2)
     now = dt.datetime.now().strftime('%d.%m.%Y')
-    result = runner.invoke(main_khal, 'new {} 18:00 myevent'.format(now).split())
+    result = runner.invoke(main_khal, f'new {now} 18:00 myevent'.split())
     assert result.output == ''
     assert not result.exception
 
@@ -159,12 +161,12 @@ def test_days(runner):
     runner = runner(days=9)
 
     when = (dt.datetime.now() + dt.timedelta(days=7)).strftime('%d.%m.%Y')
-    result = runner.invoke(main_khal, 'new {} 18:00 nextweek'.format(when).split())
+    result = runner.invoke(main_khal, f'new {when} 18:00 nextweek'.split())
     assert result.output == ''
     assert not result.exception
 
     when = (dt.datetime.now() + dt.timedelta(days=30)).strftime('%d.%m.%Y')
-    result = runner.invoke(main_khal, 'new {} 18:00 nextmonth'.format(when).split())
+    result = runner.invoke(main_khal, f'new {when} 18:00 nextmonth'.split())
     assert result.output == ''
     assert not result.exception
 
@@ -320,13 +322,13 @@ def test_invalid_calendar(runner):
 def test_attach_calendar(runner):
     runner = runner(days=2)
     result = runner.invoke(main_khal, ['printcalendars'])
-    assert set(result.output.split('\n')[:3]) == set(['one', 'two', 'three'])
+    assert set(result.output.split('\n')[:3]) == {'one', 'two', 'three'}
     assert not result.exception
     result = runner.invoke(main_khal, ['printcalendars', '-a', 'one'])
     assert result.output == 'one\n'
     assert not result.exception
     result = runner.invoke(main_khal, ['printcalendars', '-d', 'one'])
-    assert set(result.output.split('\n')[:2]) == set(['two', 'three'])
+    assert set(result.output.split('\n')[:2]) == {'two', 'three'}
     assert not result.exception
 
 
@@ -364,8 +366,8 @@ def test_repeating(runner):
     now = dt.datetime.now().strftime('%d.%m.%Y')
     end_date = dt.datetime.now() + dt.timedelta(days=10)
     result = runner.invoke(
-        main_khal, 'new {} 18:00 myevent -r weekly -u {}'.format(
-            now, end_date.strftime('%d.%m.%Y')).split())
+        main_khal, (f"new {now} 18:00 myevent -r weekly -u "
+                    f"{end_date.strftime('%d.%m.%Y')}").split())
     assert not result.exception
     assert result.output == ''
 
@@ -376,7 +378,7 @@ def test_at(runner):
     end_date = dt.datetime.now() + dt.timedelta(days=10)
     result = runner.invoke(
         main_khal,
-        'new {} {} 18:00 myevent'.format(now, end_date.strftime('%d.%m.%Y')).split())
+        f"new {now} {end_date.strftime('%d.%m.%Y')} 18:00 myevent".split())
     args = ['--color', 'at', '--format', '{start-time}{title}', '--day-format', '', '18:30']
     result = runner.invoke(main_khal, args)
     assert not result.exception
@@ -389,7 +391,7 @@ def test_at_day_format(runner):
     end_date = dt.datetime.now() + dt.timedelta(days=10)
     result = runner.invoke(
         main_khal,
-        'new {} {} 18:00 myevent'.format(now, end_date.strftime('%d.%m.%Y')).split())
+        f"new {now} {end_date.strftime('%d.%m.%Y')} 18:00 myevent".split())
     args = ['--color', 'at', '--format', '{start-time}{title}', '--day-format', '{name}', '18:30']
     result = runner.invoke(main_khal, args)
     assert not result.exception
@@ -401,7 +403,7 @@ def test_list(runner):
     now = dt.datetime.now().strftime('%d.%m.%Y')
     result = runner.invoke(
         main_khal,
-        'new {} 18:00 myevent'.format(now).split())
+        f'new {now} 18:00 myevent'.split())
     format = '{red}{start-end-time-style}{reset} {title} :: {description}'
     args = ['--color', 'list', '--format', format, '--day-format', 'header', '18:30']
     result = runner.invoke(main_khal, args)
@@ -413,7 +415,7 @@ def test_list(runner):
 def test_search(runner):
     runner = runner(days=2)
     now = dt.datetime.now().strftime('%d.%m.%Y')
-    result = runner.invoke(main_khal, 'new {} 18:00 myevent'.format(now).split())
+    result = runner.invoke(main_khal, f'new {now} 18:00 myevent'.split())
     format = '{red}{start-end-time-style}{reset} {title} :: {description}'
     result = runner.invoke(main_khal, ['--color', 'search', '--format', format, 'myevent'])
     assert not result.exception
@@ -451,12 +453,12 @@ def test_import(runner, monkeypatch):
     monkeypatch.setattr('khal.controllers.import_ics', fake.import_ics)
     # as we are not actually parsing the file we want to import, we can use
     # any readable file at all, therefore re-using the configuration file
-    result = runner.invoke(main_khal, 'import -a one {}'.format(runner.config_file).split())
+    result = runner.invoke(main_khal, f'import -a one {runner.config_file}'.split())
     assert not result.exception
     assert {cal['name'] for cal in fake.args[0].calendars} == {'one'}
 
     fake.clean()
-    result = runner.invoke(main_khal, 'import {}'.format(runner.config_file).split())
+    result = runner.invoke(main_khal, f'import {runner.config_file}'.split())
     assert not result.exception
     assert {cal['name'] for cal in fake.args[0].calendars} == {'one', 'two', 'three'}
 
@@ -620,7 +622,7 @@ def test_configure_command(runner):
     runner.config_file.remove()
 
     result = runner.invoke(main_khal, ['configure'], input=choices())
-    assert 'Successfully wrote configuration to {}'.format(runner.config_file) in result.output
+    assert f'Successfully wrote configuration to {runner.config_file}' in result.output
     assert result.exit_code == 0
     with open(str(runner.config_file)) as f:
         actual_config = ''.join(f.readlines())
@@ -670,13 +672,9 @@ def test_print_ics_command(runner):
     # Non existing file
     result = runner.invoke(main_khal, ['printics', 'nonexisting_file'])
     assert result.exception
-    assert (
-        'Error: Invalid value for "ics": Could not open file: ' in result.output or
-        'Error: Invalid value for "[ICS]": Could not open file:'
-        in result.output or
-        'Error: Invalid value for \'ics\': Could not open file: ' in result.output or
-        'Error: Invalid value for \'[ICS]\': Could not open file:'
-        in result.output)
+    assert re.search(r'''Error: Invalid value for "?'?\[?(ICS|ics)\]?'?"?: '''
+                     r'''('nonexisting_file': No such file or directory\n|'''
+                     r'Could not open file:)', result.output)
 
     # Run on test files
     result = runner.invoke(main_khal, ['printics', _get_ics_filepath('cal_d')])
@@ -724,15 +722,15 @@ def test_configure_command_create_vdir(runner):
         main_khal, ['configure'],
         input=choices(parse_vdirsyncer_conf=False, create_vdir=True),
     )
-    assert 'Successfully wrote configuration to {}'.format(str(runner.config_file)) in result.output
+    assert f'Successfully wrote configuration to {str(runner.config_file)}' in result.output
     assert result.exit_code == 0
     with open(str(runner.config_file)) as f:
         actual_config = ''.join(f.readlines())
 
-    assert actual_config == '''[calendars]
+    assert actual_config == f'''[calendars]
 
 [[private]]
-path = {}/khal/calendars/private
+path = {str(runner.xdg_data_home)}/khal/calendars/private
 type = calendar
 
 [locale]
@@ -744,7 +742,7 @@ longdatetimeformat = %Y-%m-%d %H:%M
 
 [default]
 default_calendar = private
-'''.format(runner.xdg_data_home)
+'''
 
     # running configure again, should yield another vdir path, as the old
     # one still exists
@@ -753,12 +751,12 @@ default_calendar = private
         main_khal, ['configure'],
         input=choices(parse_vdirsyncer_conf=False, create_vdir=True),
     )
-    assert 'Successfully wrote configuration to {}'.format(str(runner.config_file)) in result.output
+    assert f'Successfully wrote configuration to {str(runner.config_file)}' in result.output
     assert result.exit_code == 0
     with open(str(runner.config_file)) as f:
         actual_config = ''.join(f.readlines())
 
-    assert '{}/khal/calendars/private1' .format(runner.xdg_data_home) in actual_config
+    assert f'{runner.xdg_data_home}/khal/calendars/private1' in actual_config
 
 
 def cleanup(paths):
@@ -766,7 +764,7 @@ def cleanup(paths):
     for path in paths:
         if os.path.exists(path):
             os.chmod(str(path), 0o755)
-        for dirpath, dirnames, filenames in os.walk(path):
+        for dirpath, _dirnames, filenames in os.walk(path):
             os.chmod(str(dirpath), 0o755)
             for filename in filenames:
                 os.chmod(str(os.path.join(dirpath, filename)), 0o644)
@@ -816,7 +814,7 @@ def test_edit(runner):
 
     for name in ['event_dt_simple', 'event_d_15']:
         cal_dt = _get_text(name)
-        event = runner.calendars['one'].join('{}.ics'.format(name))
+        event = runner.calendars['one'].join(f'{name}.ics')
         event.write(cal_dt)
 
     format = '{start-end-time-style}: {title}'
@@ -883,5 +881,28 @@ def test_new_interactive_extensive(runner):
         'c\nwork\n'
         'n\n'
     )
+    assert not result.exception
+    assert result.exit_code == 0
+
+
+@freeze_time('2015-6-1 8:00')
+def test_issue_1056(runner):
+    """if an ansi escape sequence is contained in the output, we can't parse it
+    properly"""
+
+    runner = runner(print_new='path', default_calendar=False)
+
+    result = runner.invoke(
+        main_khal, 'new -i'.split(),
+        'two\n'
+        'new event\n'
+        'now\n'
+        'Europe/London\n'
+        'None\n'
+        't\n'  # edit datetime range
+        '\n'
+        'n\n'
+    )
+    assert 'error parsing range' not in result.output
     assert not result.exception
     assert result.exit_code == 0

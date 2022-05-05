@@ -4,10 +4,11 @@ import os
 from textwrap import dedent
 from time import sleep
 
-import khal.khalendar.exceptions
-import khal.utils
 import pytest
 from freezegun import freeze_time
+
+import khal.khalendar.exceptions
+import khal.utils
 from khal import icalendar as icalendar_helpers
 from khal.khalendar import CalendarCollection
 from khal.khalendar.backend import CouldNotCreateDbDir
@@ -15,8 +16,8 @@ from khal.khalendar.event import Event
 from khal.khalendar.vdir import Item
 
 from . import utils
-from .utils import (_get_text, cal1, cal2, cal3, normalize_component, DumbItem,
-                    BERLIN, LONDON, SYDNEY, LOCALE_SYDNEY, LOCALE_BERLIN)
+from .utils import (BERLIN, LOCALE_BERLIN, LOCALE_SYDNEY, LONDON, SYDNEY,
+                    DumbItem, _get_text, cal1, cal2, cal3, normalize_component)
 
 today = dt.date.today()
 yesterday = today - dt.timedelta(days=1)
@@ -41,12 +42,12 @@ item_today = Item(event_today)
 SIMPLE_EVENT_UID = 'V042MJ8B3SJNFXQOJL6P53OFMHJE8Z3VZWOU'
 
 
-class TestCalendar(object):
+class TestCalendar:
 
     def test_create(self, coll_vdirs):
         assert True
 
-    def test_new_event(self, coll_vdirs, sleep_time):
+    def test_new_event(self, coll_vdirs):
         coll, vdirs = coll_vdirs
         event = coll.new_event(event_today, cal1)
         assert event.calendar == cal1
@@ -60,8 +61,8 @@ class TestCalendar(object):
 
     def test_sanity(self, coll_vdirs):
         coll, vdirs = coll_vdirs
-        mtimes = dict()
-        for i in range(100):
+        mtimes = {}
+        for _ in range(100):
             for cal in coll._calendars:
                 mtime = coll._local_ctag(cal)
                 if mtimes.get(cal):
@@ -74,8 +75,8 @@ class TestCalendar(object):
 
         print('init')
         for calendar in coll._calendars:
-            print('{}: saved ctag: {}, vdir ctag: {}'.format(
-                calendar, coll._local_ctag(calendar), coll._backend.get_ctag(calendar)))
+            print(f'{calendar}: saved ctag: {coll._local_ctag(calendar)}, '
+                  f'vdir ctag: {coll._backend.get_ctag(calendar)}')
         assert len(list(vdirs[cal1].list())) == 0
         assert coll._needs_update(cal1) is False
         sleep(sleep_time)
@@ -83,19 +84,19 @@ class TestCalendar(object):
         vdirs[cal1].upload(item_today)
         print('upload')
         for calendar in coll._calendars:
-            print('{}: saved ctag: {}, vdir ctag: {}'.format(
-                calendar, coll._local_ctag(calendar), coll._backend.get_ctag(calendar)))
+            print(f'{calendar}: saved ctag: {coll._local_ctag(calendar)}, '
+                  f'vdir ctag: {coll._backend.get_ctag(calendar)}')
         assert len(list(vdirs[cal1].list())) == 1
         assert coll._needs_update(cal1) is True
         coll.update_db()
         print('updated')
         for calendar in coll._calendars:
-            print('{}: saved ctag: {}, vdir ctag: {}'.format(
-                calendar, coll._local_ctag(calendar), coll._backend.get_ctag(calendar)))
+            print(f'{calendar}: saved ctag: {coll._local_ctag(calendar)}, '
+                  f'vdir ctag: {coll._backend.get_ctag(calendar)}')
         assert coll._needs_update(cal1) is False
 
 
-class TestVdirsyncerCompat(object):
+class TestVdirsyncerCompat:
     def test_list(self, coll_vdirs):
         coll, vdirs = coll_vdirs
         event = Event.fromString(_get_text('event_d'), calendar=cal1, locale=LOCALE_BERLIN)
@@ -107,13 +108,13 @@ class TestVdirsyncerCompat(object):
         event = Event.fromString(event_today, calendar=cal1, locale=LOCALE_BERLIN)
         coll.new(event)
         hrefs = sorted(href for href, etag in coll._backend.list(cal1))
-        assert set(str(coll.get_event(href, calendar=cal1).uid) for href in hrefs) == set((
+        assert {str(coll.get_event(href, calendar=cal1).uid) for href in hrefs} == {
             'uid3@host1.com',
             'V042MJ8B3SJNFXQOJL6P53OFMHJE8Z3VZWOU',
-        ))
+        }
 
 
-class TestCollection(object):
+class TestCollection:
 
     astart = dt.datetime.combine(aday, dt.time.min)
     aend = dt.datetime.combine(aday, dt.time.max)
@@ -148,9 +149,9 @@ class TestCollection(object):
         coll, vdirs = coll_vdirs
         start = dt.datetime.combine(today, dt.time.min)
         end = dt.datetime.combine(today, dt.time.max)
-        assert list(coll.get_floating(start, end)) == list()
+        assert list(coll.get_floating(start, end)) == []
         assert list(coll.get_localized(utils.BERLIN.localize(start),
-                                       utils.BERLIN.localize(end))) == list()
+                                       utils.BERLIN.localize(end))) == []
 
     def test_insert(self, coll_vdirs):
         """insert a localized event"""
@@ -298,7 +299,7 @@ class TestCollection(object):
         event = Event.fromString(
             _get_text('event_dt_multi_recuid_no_master'), calendar=cal1, locale=LOCALE_BERLIN)
         coll.new(event, cal1)
-        events = list(sorted(coll.search('Event')))
+        events = sorted(coll.search('Event'))
         assert len(events) == 2
         assert events[0].format(
             '{start} {end} {title}', dt.date.today()) == '30.06. 07:30 30.06. 12:00 Arbeit\x1b[0m'
@@ -334,14 +335,15 @@ class TestCollection(object):
         event = Event.fromString(
             _get_text('invalid_tzoffset'), calendar=cal1, locale=LOCALE_BERLIN)
         coll.new(event, cal1)
-        events = list(sorted(coll.search('Event')))
+        events = sorted(coll.search('Event'))
         assert len(events) == 1
         assert events[0].format('{start} {end} {title}', dt.date.today()) == \
             '02.12. 08:00 02.12. 09:30 Some event\x1b[0m'
 
-    def test_multi_uid_vdir(self, coll_vdirs, caplog, fix_caplog):
+    def test_multi_uid_vdir(self, coll_vdirs, caplog, fix_caplog, sleep_time):
         coll, vdirs = coll_vdirs
         caplog.set_level(logging.WARNING)
+        sleep(sleep_time)  # Make sure we get a new ctag on upload
         vdirs[cal1].upload(DumbItem(_get_text('event_dt_multi_uid'), uid='12345'))
         coll.update_db()
         assert list(coll.search('')) == []
@@ -354,7 +356,7 @@ class TestCollection(object):
         )
 
 
-class TestDbCreation(object):
+class TestDbCreation:
 
     def test_create_db(self, tmpdir):
         vdirpath = str(tmpdir) + '/' + cal1
@@ -378,8 +380,9 @@ class TestDbCreation(object):
         os.chmod(str(tmpdir), 777)
 
 
-def test_event_different_timezones(coll_vdirs):
+def test_event_different_timezones(coll_vdirs, sleep_time):
     coll, vdirs = coll_vdirs
+    sleep(sleep_time)  # Make sure we get a new ctag on upload
     vdirs[cal1].upload(DumbItem(_get_text('event_dt_london'), uid='12345'))
     coll.update_db()
 
@@ -435,6 +438,7 @@ def test_default_calendar(coll_vdirs, sleep_time):
 
     assert len(list(coll.get_events_on(today))) == 0
 
+    sleep(sleep_time)  # Make sure we get a new ctag on upload
     vdir.upload(event)
     sleep(sleep_time)
     href, etag = list(vdir.list())[0]
@@ -464,6 +468,8 @@ def test_only_update_old_event(coll_vdirs, monkeypatch, sleep_time):
     SUMMARY:first meeting
     END:VEVENT
     """), cal1))
+
+    sleep(sleep_time)  # Make sure we get a new etag for meeting-two
 
     href_two, etag_two = vdirs[cal1].upload(coll.new_event(dedent("""
     BEGIN:VEVENT
@@ -525,11 +531,12 @@ END:VCARD
 """
 
 
-def test_birthdays(coll_vdirs_birthday):
+def test_birthdays(coll_vdirs_birthday, sleep_time):
     coll, vdirs = coll_vdirs_birthday
     assert list(
         coll.get_floating(dt.datetime(1971, 3, 11), dt.datetime(1971, 3, 11, 23, 59, 59))
-    ) == list()
+    ) == []
+    sleep(sleep_time)  # Make sure we get a new ctag on upload
     vdirs[cal1].upload(DumbItem(card, 'unix'))
     coll.update_db()
     assert 'Unix\'s 41st birthday' == list(
@@ -540,10 +547,12 @@ def test_birthdays(coll_vdirs_birthday):
         coll.get_floating(dt.datetime(2014, 3, 11), dt.datetime(2014, 3, 11)))[0].summary
 
 
-def test_birthdays_29feb(coll_vdirs_birthday):
+def test_birthdays_29feb(coll_vdirs_birthday, sleep_time):
     """test how we deal with birthdays on 29th of feb in leap years"""
     coll, vdirs = coll_vdirs_birthday
+    sleep(sleep_time)  # Make sure we get a new ctag on upload
     vdirs[cal1].upload(DumbItem(card_29thfeb, 'leap'))
+    assert coll.needs_update()
     coll.update_db()
     events = list(
         coll.get_floating(dt.datetime(2004, 1, 1, 0, 0), dt.datetime(2004, 12, 31))
@@ -572,11 +581,12 @@ def test_birthdays_29feb(coll_vdirs_birthday):
     assert events[0].start == dt.date(2005, 3, 1)
 
 
-def test_birthdays_no_year(coll_vdirs_birthday):
+def test_birthdays_no_year(coll_vdirs_birthday, sleep_time):
     coll, vdirs = coll_vdirs_birthday
     assert list(
         coll.get_floating(dt.datetime(1971, 3, 11), dt.datetime(1971, 3, 11, 23, 59, 59))
-    ) == list()
+    ) == []
+    sleep(sleep_time)  # Make sure we get a new ctag on upload
     vdirs[cal1].upload(DumbItem(card_no_year, 'vcard.vcf'))
     coll.update_db()
     events = list(coll.get_floating(dt.datetime(1971, 3, 11), dt.datetime(1971, 3, 11, 23, 59, 59)))

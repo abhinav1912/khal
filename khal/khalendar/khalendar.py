@@ -46,15 +46,15 @@ logger = logging.getLogger('khal')
 def create_directory(path: str):
     if not os.path.isdir(path):
         if os.path.exists(path):
-            raise RuntimeError('{0} is not a directory.'.format(path))
+            raise RuntimeError(f'{path} is not a directory.')
         try:
             os.makedirs(path, mode=0o750)
         except OSError as error:
-            logger.critical('failed to create {0}: {1}'.format(path, error))
+            logger.critical(f'failed to create {path}: {error}')
             raise CouldNotCreateDbDir()
 
 
-class CalendarCollection(object):
+class CalendarCollection:
     """CalendarCollection allows access to various calendars stored in vdirs
 
     all calendars are cached in an sqlitedb for performance reasons"""
@@ -67,14 +67,15 @@ class CalendarCollection(object):
                  color: str='',
                  priority: int=10,
                  highlight_event_days: bool=False,
-                 locale: Dict[str, Any]=dict(),
+                 locale: Optional[Dict[str, Any]]=None,
                  dbpath: Optional[str]=None,
                  ) -> None:
+        locale = locale or {}
         assert dbpath is not None
         assert calendars is not None
         self._calendars = calendars
         self._default_calendar_name = None  # type: Optional[str]
-        self._storages = dict()  # type: Dict[str, Vdir]
+        self._storages = {}  # type: Dict[str, Vdir]
         for name, calendar in self._calendars.items():
             ctype = calendar.get('ctype', 'calendar')
             if ctype == 'calendar':
@@ -87,7 +88,7 @@ class CalendarCollection(object):
                 self._storages[name] = Vdir(calendar['path'], file_ext)
             except CollectionNotFoundError:
                 os.makedirs(calendar['path'])
-                logger.info('created non-existing vdir {}'.format(calendar['path']))
+                logger.info(f"created non-existing vdir {calendar['path']}")
                 self._storages[name] = Vdir(calendar['path'], file_ext)
 
         self.hmethod = hmethod
@@ -98,7 +99,7 @@ class CalendarCollection(object):
         self.highlight_event_days = highlight_event_days
         self._locale = locale
         self._backend = backend.SQLiteDb(self.names, dbpath, self._locale)
-        self._last_ctags = dict()  # type: Dict[str, str]
+        self._last_ctags = {}  # type: Dict[str, str]
         self.update_db()
 
     @property
@@ -122,7 +123,7 @@ class CalendarCollection(object):
         if default is None:
             self._default_calendar_name = default
         elif default not in self.names:
-            raise ValueError('Unknown calendar: {0}'.format(default))
+            raise ValueError(f'Unknown calendar: {default}')
 
         readonly = self._calendars[default].get('readonly', False)
 
@@ -130,7 +131,7 @@ class CalendarCollection(object):
             self._default_calendar_name = default
         else:
             raise ValueError(
-                'Calendar "{0}" is read-only and cannot be used as default'.format(default))
+                f'Calendar "{default}" is read-only and cannot be used as default')
 
     def _local_ctag(self, calendar: str) -> str:
         return get_etag_from_file(self._calendars[calendar]['path'])
@@ -303,7 +304,7 @@ class CalendarCollection(object):
     def _db_update(self, calendar: str):
         """implements the actual db update on a per calendar base"""
         local_ctag = self._local_ctag(calendar)
-        db_hrefs = set(href for href, etag in self._backend.list(calendar))
+        db_hrefs = {href for href, etag in self._backend.list(calendar)}
         storage_hrefs = set()
         bdays = self._calendars[calendar].get('ctype') == 'birthdays'
 
@@ -312,7 +313,7 @@ class CalendarCollection(object):
                 storage_hrefs.add(href)
                 db_etag = self._backend.get_etag(href, calendar=calendar)
                 if etag != db_etag:
-                    logger.debug('Updating {0} because {1} != {2}'.format(href, etag, db_etag))
+                    logger.debug(f'Updating {href} because {etag} != {db_etag}')
                     self._update_vevent(href, calendar=calendar)
             for href in db_hrefs - storage_hrefs:
                 if bdays:
@@ -341,8 +342,8 @@ class CalendarCollection(object):
             if not isinstance(e, (UpdateFailed, UnsupportedFeatureError, NonUniqueUID)):
                 logger.exception('Unknown exception happened.')
             logger.warning(
-                'Skipping {0}/{1}: {2}\n'
-                'This event will not be available in khal.'.format(calendar, href, str(e)))
+                f'Skipping {calendar}/{href}: {str(e)}\n'
+                'This event will not be available in khal.')
             return False
 
     def search(self, search_string: str) -> Iterable[Event]:

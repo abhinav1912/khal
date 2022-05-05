@@ -112,6 +112,9 @@ Several options are common to almost all of :program:`khal`'s commands
    repeat-symbol
         A repeating symbol (loop arrow) if the event is repeating.
 
+   alarm-symbol
+        An alarm symbol (alarm clock) if the event has at least one alarm.
+
    location
         The event location.
 
@@ -161,6 +164,9 @@ Several options are common to almost all of :program:`khal`'s commands
        ORGANIZER;SENT-BY="mailto:toemail@mail.com":mailto:name@mail.com
        returns
        name@mail.com
+
+   url
+       The URL embedded in the event, otherwise nothing.
 
    By default, all-day events have no times. To see a start and end time anyway simply
    add `-full` to the end of any template with start/end, for instance
@@ -409,6 +415,8 @@ Options
 
 * **-u, --until=UNTIL** specify until when a recurring event should run
 
+* **--url** specify the URL element of the event
+
 * **--alarms DURATION,...** will add alarm times as DELTAs comma separated for this event,
   *DURATION* should look like `1day 10minutes` or `1d3H10m`, negative
   *DURATIONs* will set alarm after the start of the event.
@@ -440,7 +448,7 @@ additional description
 
     khal new -a work 26.07. Great Event -g meeting -r weekly
 
-adds a new all day event on 26th of July to the calendar *work* in the *meeting* 
+adds a new all day event on 26th of July to the calendar *work* in the *meeting*
 category, which recurs every week.
 
 

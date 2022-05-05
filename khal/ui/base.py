@@ -114,11 +114,11 @@ class Pane(urwid.WidgetWrap):
             return super().keypress(size, key)
 
     def show_keybindings(self):
-        lines = list()
+        lines = []
         lines.append('  Command              Keys')
         lines.append('  =======              ====')
         for command, keys in self._conf['keybindings'].items():
-            lines.append('  {:20} {}'.format(command, keys))
+            lines.append(f'  {command:20} {keys}')
         self.scrollable_dialog(
             '\n'.join(lines),
             title="Press `ESC` to close this window, arrows to scroll",
@@ -144,7 +144,8 @@ class Window(urwid.Frame):
     to carry data between them.
     """
 
-    def __init__(self, footer='', quit_keys=['q']):
+    def __init__(self, footer='', quit_keys=None):
+        quit_keys = quit_keys or ['q']
         self._track = []
 
         header = urwid.AttrWrap(urwid.Text(''), 'header')

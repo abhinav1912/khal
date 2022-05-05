@@ -32,14 +32,14 @@ from click import style
 
 from ..exceptions import FatalError
 from ..icalendar import cal_from_ics, delete_instance, invalid_timezone
+from ..parse_datetime import timedelta2str
 from ..terminal import get_color
 from ..utils import generate_random_uid, is_aware, to_naive_utc, to_unix_time
-from ..parse_datetime import timedelta2str
 
 logger = logging.getLogger('khal')
 
 
-class Event(object):
+class Event:
     """base Event class for representing a *recurring instance* of an Event
 
     (in case of non-recurring events this distinction is irrelevant)
@@ -121,7 +121,7 @@ class Event(object):
         """
         assert isinstance(events_list, list)
 
-        vevents = dict()
+        vevents = {}
         for event in events_list:
             if 'RECURRENCE-ID' in event:
                 if invalid_timezone(event['RECURRENCE-ID']):
@@ -184,12 +184,12 @@ class Event(object):
             try:
                 return end < other_end
             except TypeError:
-                raise ValueError('Cannot compare events {} and {}'.format(end, other_end))
+                raise ValueError(f'Cannot compare events {end} and {other_end}')
 
         try:
             return start < other_start
         except TypeError:
-            raise ValueError('Cannot compare events {} and {}'.format(start, other_start))
+            raise ValueError(f'Cannot compare events {start} and {other_start}')
 
     def update_start_end(self, start, end):
         """update start and end time of this event
@@ -218,9 +218,18 @@ class Event(object):
 
     @property
     def recurring(self):
-        return 'RRULE' in self._vevents[self.ref] or \
-            'RECURRENCE-ID' in self._vevents[self.ref] or \
-            'RDATE' in self._vevents[self.ref]
+        try:
+            rval = 'RRULE' in self._vevents[self.ref] or \
+                'RECURRENCE-ID' in self._vevents[self.ref] or \
+                'RDATE' in self._vevents[self.ref]
+        except KeyError:
+            logger.fatal(
+                f"The event at {self.href} might be broken. You might want to "
+                "file an issue at https://github.com/pimutils/khal/issues"
+            )
+            raise
+        else:
+            return rval
 
     @property
     def recurpattern(self):
@@ -262,21 +271,23 @@ class Event(object):
     @property
     def symbol_strings(self):
         if self._locale['unicode_symbols']:
-            return dict(
-                recurring='\N{Clockwise gapped circle arrow}',
-                range='\N{Left right arrow}',
-                range_end='\N{Rightwards arrow to bar}',
-                range_start='\N{Rightwards arrow from bar}',
-                right_arrow='\N{Rightwards arrow}'
-            )
+            return {
+                'recurring': '\N{Clockwise gapped circle arrow}',
+                'alarming': '\N{Alarm clock}',
+                'range': '\N{Left right arrow}',
+                'range_end': '\N{Rightwards arrow to bar}',
+                'range_start': '\N{Rightwards arrow from bar}',
+                'right_arrow': '\N{Rightwards arrow}'
+            }
         else:
-            return dict(
-                recurring='(R)',
-                range='<->',
-                range_end='->|',
-                range_start='|->',
-                right_arrow='->'
-            )
+            return {
+                'recurring': '(R)',
+                'alarming': '(A)',
+                'range': '<->',
+                'range_end': '->|',
+                'range_start': '|->',
+                'right_arrow': '->'
+            }
 
     @property
     def start_local(self):
@@ -318,9 +329,21 @@ class Event(object):
         cn = organizer.params.get('CN', '')
         email = organizer.split(':')[-1]
         if cn:
-            return '{} ({})'.format(cn, email)
+            return f'{cn} ({email})'
         else:
             return email
+
+    @property
+    def url(self):
+        if 'URL' not in self._vevents[self.ref]:
+            return ''
+        return self._vevents[self.ref]['URL']
+
+    def update_url(self, url):
+        if url:
+            self._vevents[self.ref]['URL'] = url
+        else:
+            self._vevents[self.ref].pop('URL')
 
     @staticmethod
     def _create_calendar():
@@ -344,7 +367,7 @@ class Event(object):
         return text
         """
         calendar = self._create_calendar()
-        tzs = list()
+        tzs = []
         for vevent in self._vevents.values():
             if hasattr(vevent['DTSTART'].dt, 'tzinfo') and vevent['DTSTART'].dt.tzinfo is not None:
                 tzs.append(vevent['DTSTART'].dt.tzinfo)
@@ -455,6 +478,43 @@ class Event(object):
             self._vevents[self.ref].pop('LOCATION')
 
     @property
+    def attendees(self):
+        addresses = self._vevents[self.ref].get('ATTENDEE', [])
+        if not isinstance(addresses, list):
+            addresses = [addresses, ]
+        return ", ".join([address.split(':')[-1]
+                          for address in addresses])
+
+    def update_attendees(self, attendees):
+        assert isinstance(attendees, list)
+        attendees = [a.strip().lower() for a in attendees if a != ""]
+        if len(attendees) > 0:
+            # first check for overlaps in existing attendees.
+            # Existing vCalAddress objects will be copied, non-existing
+            # vCalAddress objects will be created and appended.
+            old_attendees = self._vevents[self.ref].get('ATTENDEE', [])
+            unchanged_attendees = []
+            vCalAddresses = []
+            for attendee in attendees:
+                for old_attendee in old_attendees:
+                    old_email = old_attendee.lstrip("MAILTO:").lower()
+                    if attendee == old_email:
+                        vCalAddresses.append(old_attendee)
+                        unchanged_attendees.append(attendee)
+            for attendee in [a for a in attendees if a not in unchanged_attendees]:
+                item = icalendar.prop.vCalAddress(f'MAILTO:{attendee}')
+                item.params['ROLE'] = icalendar.prop.vText('REQ-PARTICIPANT')
+                item.params['PARTSTAT'] = icalendar.prop.vText('NEEDS-ACTION')
+                item.params['CUTYPE'] = icalendar.prop.vText('INDIVIDUAL')
+                item.params['RSVP'] = icalendar.prop.vText('TRUE')
+                # TODO use khard here to receive full information from email address
+                vCalAddresses.append(item)
+
+            self._vevents[self.ref]['ATTENDEE'] = vCalAddresses
+        else:
+            self._vevents[self.ref].pop('ATTENDEE')
+
+    @property
     def categories(self):
         try:
             return self._vevents[self.ref].get('CATEGORIES', '').to_ical().decode('utf-8')
@@ -485,12 +545,22 @@ class Event(object):
             recurstr = ''
         return recurstr
 
-    def format(self, format_string, relative_to, env={}, colors=True):
+    @property
+    def _alarm_str(self):
+        if self.alarms:
+            alarmstr = ' ' + self.symbol_strings['alarming']
+        else:
+            alarmstr = ''
+        return alarmstr
+
+    def format(self, format_string, relative_to, env=None, colors=True):
         """
         :param colors: determines if colors codes should be printed or not
         :type colors: bool
         """
-        attributes = dict()
+        env = env or {}
+
+        attributes = {}
         try:
             relative_to_start, relative_to_end = relative_to
         except TypeError:
@@ -608,6 +678,7 @@ class Event(object):
 
         attributes["repeat-symbol"] = self._recur_str
         attributes["repeat-pattern"] = self.recurpattern
+        attributes["alarm-symbol"] = self._alarm_str
         attributes["title"] = self.summary
         attributes["organizer"] = self.organizer.strip()
         attributes["description"] = self.description.strip()
@@ -615,9 +686,11 @@ class Event(object):
         if attributes["description"]:
             attributes["description-separator"] = " :: "
         attributes["location"] = self.location.strip()
+        attributes["attendees"] = self.attendees
         attributes["all-day"] = allday
         attributes["categories"] = self.categories
         attributes['uid'] = self.uid
+        attributes['url'] = self.url
 
         if "calendars" in env and self.calendar in env["calendars"]:
             cal = env["calendars"][self.calendar]
@@ -667,7 +740,7 @@ class Event(object):
 
         # in case the instance we want to delete is specified as a RECURRENCE-ID
         # event, we should delete that as well
-        to_pop = list()
+        to_pop = []
         for key in self._vevents:
             if key == 'PROTO':
                 continue
@@ -698,10 +771,9 @@ class LocalizedEvent(DatetimeEvent):
             starttz = getattr(self._vevents[self.ref]['DTSTART'].dt, 'tzinfo', None)
         except KeyError:
             msg = (
-                "Cannot understand event {} from "
-                "calendar {}, you might want to file an issue at "
+                f"Cannot understand event {kwargs.get('href')} from "
+                f"calendar {kwargs.get('calendar')}, you might want to file an issue at "
                 "https://github.com/pimutils/khal/issues"
-                .format(kwargs.get('href'), kwargs.get('calendar'))
             )
             logger.fatal(msg)
             raise FatalError(  # because in ikhal you won't see the logger's output
@@ -761,14 +833,14 @@ class AllDayEvent(Event):
 
     @property
     def end(self):
-        end = super(AllDayEvent, self).end
+        end = super().end
         if end == self.start:
             # https://github.com/pimutils/khal/issues/129
-            logger.warning('{} ("{}"): The event\'s end date property '
-                           'contains the same value as the start date, '
-                           'which is invalid as per RFC 5545. Khal will '
-                           'assume this is meant to be a single-day event '
-                           'on {}'.format(self.href, self.summary, self.start))
+            logger.warning(f'{self.href} ("{self.summary}"): The event\'s end '
+                           'date property contains the same value as the start '
+                           'date, which is invalid as per RFC 5545. Khal will '
+                           'assume this is meant to be a single-day event on '
+                           f'{self.start}')
             end += dt.timedelta(days=1)
         return end - dt.timedelta(days=1)
 
@@ -840,7 +912,7 @@ def create_timezone(tz, first_date=None, last_date=None):
             last_num = num
             last_tt = transtime
 
-    timezones = dict()
+    timezones = {}
     for num in range(first_num, last_num + 1):
         name = tz._transition_info[num][2]
         if name in timezones:

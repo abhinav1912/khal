@@ -23,28 +23,34 @@
 import datetime as dt
 import logging
 import os
+import re
 import textwrap
 from collections import OrderedDict, defaultdict
 from shutil import get_terminal_size
+from typing import Iterable, List, Tuple
 
 import pytz
 from click import confirm, echo, prompt, style
+
 from khal import (__productname__, __version__, calendar_display,
                   parse_datetime, utils)
-from khal.exceptions import FatalError, DateTimeParseError
+from khal.exceptions import DateTimeParseError, FatalError
+from khal.khalendar import CalendarCollection
 from khal.khalendar.event import Event
 from khal.khalendar.exceptions import DuplicateUid, ReadOnlyCalendarError
 
 from .exceptions import ConfigurationError
-from .icalendar import (cal_from_ics, new_event as new_vevent, split_ics,
-                        sort_key as sort_vevent_key)
+from .icalendar import cal_from_ics
+from .icalendar import new_event as new_vevent
+from .icalendar import sort_key as sort_vevent_key
+from .icalendar import split_ics
 from .khalendar.vdir import Item
 from .terminal import merge_columns
 
 logger = logging.getLogger('khal')
 
 
-def format_day(day, format_string, locale, attributes=None):
+def format_day(day, format_string: str, locale, attributes=None):
     if attributes is None:
         attributes = {}
 
@@ -121,18 +127,19 @@ def calendar(collection, agenda_format=None, notstarted=False, once=False, dater
     return merge_columns(calendar_column, event_column, width=lwidth)
 
 
-def start_end_from_daterange(daterange, locale,
-                             default_timedelta_date=dt.timedelta(days=1),
-                             default_timedelta_datetime=dt.timedelta(hours=1)):
+def start_end_from_daterange(
+    daterange: Iterable[str],
+    locale: dict,
+    default_timedelta_date=dt.timedelta(days=1),
+    default_timedelta_datetime=dt.timedelta(hours=1),
+) -> Tuple[dt.datetime, dt.datetime]:
     """
     convert a string description of a daterange into start and end datetime
 
     if no description is given, return (today, today + default_timedelta_date)
 
     :param daterange: an iterable of strings that describes `daterange`
-    :type daterange: tuple
     :param locale: locale settings
-    :type locale: dict
     """
     if not daterange:
         start = dt.datetime(*dt.date.today().timetuple()[:3])
@@ -146,26 +153,29 @@ def start_end_from_daterange(daterange, locale,
 
 
 def get_events_between(
-        collection, locale, start, end, agenda_format=None, notstarted=False,
-        env=None, width=None, seen=None, original_start=None):
+    collection: CalendarCollection,
+    locale: dict,
+    start: dt.datetime,
+    end: dt.datetime,
+    agenda_format: str,
+    notstarted: bool,
+    env: dict,
+    width,
+    seen,
+    original_start: dt.datetime,
+) -> List[str]:
     """returns a list of events scheduled between start and end. Start and end
     are strings or datetimes (of some kind).
 
     :param collection:
-    :type collection: khalendar.CalendarCollection
     :param start: the start datetime
     :param end: the end datetime
     :param agenda_format: a format string that can be used in python string formatting
-    :type  agenda_format: str
     :param env: a collection of "static" values like calendar names and color
-    :type env: dict
     :param nostarted: True if each event should start after start (instead of
     be active between start and end)
-    :type nostarted: bool
     :param original_start: start datetime to compare against of notstarted is set
-    :type original_start: datetime.datetime
     :returns: a list to be printed as the agenda for the given days
-    :rtype: list(str)
     """
     assert not (notstarted and not original_start)
 
@@ -209,11 +219,22 @@ def get_events_between(
     return event_list
 
 
-def khal_list(collection, daterange=None, conf=None, agenda_format=None,
-              day_format=None, once=False, notstarted=False, width=False,
-              env=None, datepoint=None):
-    assert daterange is not None or datepoint is not None
+def khal_list(
+    collection,
+    daterange: Iterable[str] = None,
+    conf: dict = None,
+    agenda_format=None,
+    day_format: str=None,
+    once=False,
+    notstarted: bool = False,
+    width: bool = False,
+    env=None,
+    datepoint=None,
+):
     """returns a list of all events in `daterange`"""
+    assert daterange is not None or datepoint is not None
+    assert conf is not None
+
     # because empty strings are also Falsish
     if agenda_format is None:
         agenda_format = conf['view']['agenda_event_format']
@@ -226,7 +247,7 @@ def khal_list(collection, daterange=None, conf=None, agenda_format=None,
             default_timedelta_date=conf['default']['timedelta'],
             default_timedelta_datetime=conf['default']['timedelta'],
         )
-        logger.debug('Getting all events between {} and {}'.format(start, end))
+        logger.debug(f'Getting all events between {start} and {end}')
 
     elif datepoint is not None:
         if not datepoint:
@@ -236,9 +257,9 @@ def khal_list(collection, daterange=None, conf=None, agenda_format=None,
                 datepoint, conf['locale'], dt.date.today(),
             )
         except ValueError:
-            raise FatalError('Invalid value of `{}` for a datetime'.format(' '.join(datepoint)))
+            raise FatalError('Invalid value of `{' '.join(datepoint)}` for a datetime')
         if allday:
-            logger.debug('Got date {}'.format(start))
+            logger.debug(f'Got date {start}')
             raise FatalError('Please supply a datetime, not a date.')
         end = start + dt.timedelta(seconds=1)
         if day_format is None:
@@ -246,9 +267,9 @@ def khal_list(collection, daterange=None, conf=None, agenda_format=None,
                 start.strftime(conf['locale']['longdatetimeformat']),
                 bold=True,
             )
-        logger.debug('Getting all events between {} and {}'.format(start, end))
+        logger.debug(f'Getting all events between {start} and {end}')
 
-    event_column = []
+    event_column: List[str] = []
     once = set() if once else None
     if env is None:
         env = {}
@@ -280,7 +301,7 @@ def khal_list(collection, daterange=None, conf=None, agenda_format=None,
 
 def new_interactive(collection, calendar_name, conf, info, location=None,
                     categories=None, repeat=None, until=None, alarms=None,
-                    format=None, env=None):
+                    format=None, env=None, url=None):
     try:
         info = parse_datetime.eventinfofstr(
             info, conf['locale'],
@@ -289,7 +310,7 @@ def new_interactive(collection, calendar_name, conf, info, location=None,
             adjust_reasonably=True, localize=False,
         )
     except DateTimeParseError:
-        info = dict()
+        info = {}
 
     while True:
         summary = info.get('summary')
@@ -333,7 +354,7 @@ def new_interactive(collection, calendar_name, conf, info, location=None,
     event = new_from_args(
         collection, calendar_name, conf, format=format, env=env,
         location=location, categories=categories,
-        repeat=repeat, until=until, alarms=alarms,
+        repeat=repeat, until=until, alarms=alarms, url=url,
         **info)
 
     echo("event saved")
@@ -344,7 +365,7 @@ def new_interactive(collection, calendar_name, conf, info, location=None,
 
 def new_from_string(collection, calendar_name, conf, info, location=None,
                     categories=None, repeat=None, until=None, alarms=None,
-                    format=None, env=None):
+                    url=None, format=None, env=None):
     """construct a new event from a string and add it"""
     info = parse_datetime.eventinfofstr(
         info, conf['locale'],
@@ -355,22 +376,22 @@ def new_from_string(collection, calendar_name, conf, info, location=None,
     new_from_args(
         collection, calendar_name, conf, format=format, env=env,
         location=location, categories=categories, repeat=repeat,
-        until=until, alarms=alarms, **info
+        until=until, alarms=alarms, url=url, **info
     )
 
 
 def new_from_args(collection, calendar_name, conf, dtstart=None, dtend=None,
                   summary=None, description=None, allday=None, location=None,
                   categories=None, repeat=None, until=None, alarms=None,
-                  timezone=None, format=None, env=None):
+                  timezone=None, url=None, format=None, env=None):
     """Create a new event from arguments and add to vdirs"""
     if isinstance(categories, str):
-        categories = list([category.strip() for category in categories.split(',')])
+        categories = [category.strip() for category in categories.split(',')]
     try:
         event = new_vevent(
             locale=conf['locale'], location=location, categories=categories,
             repeat=repeat, until=until, alarms=alarms, dtstart=dtstart,
-            dtend=dtend, summary=summary, description=description, timezone=timezone,
+            dtend=dtend, summary=summary, description=description, timezone=timezone, url=url,
         )
     except ValueError as error:
         raise FatalError(error)
@@ -381,7 +402,7 @@ def new_from_args(collection, calendar_name, conf, dtstart=None, dtend=None,
         collection.new(event)
     except ReadOnlyCalendarError:
         raise FatalError(
-            'ERROR: Cannot modify calendar "{}" as it is read-only'.format(calendar_name)
+            f'ERROR: Cannot modify calendar "{calendar_name}" as it is read-only'
         )
 
     if conf['default']['print_new'] == 'event':
@@ -428,6 +449,12 @@ def edit_event(event, collection, locale, allow_quit=False, width=80):
     options["categories"] = {"short": "c", "attr": "categories", "none": True}
     options["alarm"] = {"short": "a"}
     options["Delete"] = {"short": "D"}
+    options["url"] = {"short": "u", "attr": "url", "none": True}
+    # some output contains ansi escape sequences (probably only resets)
+    # if hitting enter, the output (including the escape sequence) gets parsed
+    # and fails the parsing. Therefore we remove ansi escape sequences before
+    # parsing.
+    ansi = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
     now = dt.datetime.now()
 
@@ -451,7 +478,7 @@ def edit_event(event, collection, locale, allow_quit=False, width=80):
             current = event.format("{start} {end}", relative_to=now)
             value = prompt("datetime range", default=current)
             try:
-                start, end, allday = parse_datetime.guessrangefstr(value, locale)
+                start, end, allday = parse_datetime.guessrangefstr(ansi.sub('', value), locale)
                 event.update_start_end(start, end)
                 edited = True
             except:  # noqa
@@ -469,7 +496,7 @@ def edit_event(event, collection, locale, allow_quit=False, width=80):
                 until = prompt('until (or "None")', until)
                 if until == 'None':
                     until = None
-                rrule = parse_datetime.rrulefstr(freq, until, locale)
+                rrule = parse_datetime.rrulefstr(freq, until, locale, event.start.tzinfo)
                 event.update_rrule(rrule)
             edited = True
         elif choice == "alarm":
@@ -507,7 +534,7 @@ def edit_event(event, collection, locale, allow_quit=False, width=80):
             if allow_none and value == "None":
                 value = ""
             if attr == 'categories':
-                getattr(event, "update_" + attr)(list([cat.strip() for cat in value.split(',')]))
+                getattr(event, "update_" + attr)([cat.strip() for cat in value.split(',')])
             else:
                 getattr(event, "update_" + attr)(value)
             edited = True
@@ -545,7 +572,7 @@ def interactive(collection, conf):
         collection, conf, title="select an event", description="do something")
     ui.start_pane(
         pane, pane.cleanup,
-        program_info='{0} v{1}'.format(__productname__, __version__),
+        program_info=f'{__productname__} v{__version__}',
         quit_keys=conf['keybindings']['quit'],
     )
 
@@ -593,11 +620,11 @@ def import_event(vevent, collection, locale, batch, format=None, env=None):
     else:
         calendar_names = sorted(collection.writable_names)
         choices = ', '.join(
-            ['{}({})'.format(name, num) for num, name in enumerate(calendar_names)])
+            [f'{name}({num})' for num, name in enumerate(calendar_names)])
         while True:
             value = prompt(
                 "Which calendar do you want to import to? (unique prefixes are fine)\n"
-                "{}".format(choices),
+                f"{choices}",
                 default=collection.default_calendar_name,
             )
             try:
@@ -611,7 +638,7 @@ def import_event(vevent, collection, locale, batch, format=None, env=None):
             echo('invalid choice')
     assert calendar_name in collection.writable_names
 
-    if batch or confirm("Do you want to import this event into `{}`?".format(calendar_name)):
+    if batch or confirm(f"Do you want to import this event into `{calendar_name}`?"):
         try:
             collection.new(Item(vevent), collection=calendar_name)
         except DuplicateUid:
@@ -619,7 +646,7 @@ def import_event(vevent, collection, locale, batch, format=None, env=None):
                     "An event with the same UID already exists. Do you want to update it?"):
                 collection.force_update(Item(vevent), collection=calendar_name)
             else:
-                logger.warning("Not importing event with UID `{}`".format(event.uid))
+                logger.warning(f"Not importing event with UID `{event.uid}`")
 
 
 def print_ics(conf, name, ics, format):
@@ -631,11 +658,11 @@ def print_ics(conf, name, ics, format):
     for event in events:
         events_grouped[event['UID']].append(event)
 
-    vevents = list()
+    vevents = []
     for uid in events_grouped:
         vevents.append(sorted(events_grouped[uid], key=sort_vevent_key))
 
-    echo('{} events found in {}'.format(len(vevents), name))
+    echo(f'{len(vevents)} events found in {name}')
     for sub_event in vevents:
         event = Event.fromVEvents(sub_event, locale=conf['locale'])
         echo(event.format(format, dt.datetime.now()))

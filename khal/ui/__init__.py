@@ -27,14 +27,16 @@ import sys
 import click
 import urwid
 
-from .. import icalendar as icalendar_helpers, utils
+from .. import icalendar as icalendar_helpers
+from .. import utils
 from ..khalendar.event import Event
 from ..khalendar.exceptions import ReadOnlyCalendarError
 from . import colors
-from .widgets import ExtendedEdit as Edit, NPile, NColumns, NListBox, linebox
 from .base import Pane, Window
-from .editor import EventEditor, ExportDialog
 from .calendarwidget import CalendarWidget
+from .editor import EventEditor, ExportDialog
+from .widgets import ExtendedEdit as Edit
+from .widgets import NColumns, NPile, linebox
 
 logger = logging.getLogger('khal')
 
@@ -131,11 +133,11 @@ class DateHeader(SelectableText):
         weekday = day.strftime('%A')
         daystr = day.strftime(dtformat)
         if day == dt.date.today():
-            return 'Today ({}, {})'.format(weekday, daystr)
+            return f'Today ({weekday}, {daystr})'
         elif day == dt.date.today() + dt.timedelta(days=1):
-            return 'Tomorrow ({}, {})'.format(weekday, daystr)
+            return f'Tomorrow ({weekday}, {daystr})'
         elif day == dt.date.today() - dt.timedelta(days=1):
-            return 'Yesterday ({}, {})'.format(weekday, daystr)
+            return f'Yesterday ({weekday}, {daystr})'
 
         approx_delta = utils.relative_timedelta_str(day)
 
@@ -167,8 +169,8 @@ class U_Event(urwid.Text):
         """
         if relative:
             if isinstance(this_date, dt.datetime) or not isinstance(this_date, dt.date):
-                raise ValueError('`this_date` is of type `{}`, sould be '
-                                 '`datetime.date`'.format(type(this_date)))
+                raise ValueError(f'`this_date` is of type `{type(this_date)}`, '
+                                 'should be `datetime.date`')
         self.event = event
         self.delete_status = delete_status
         self.this_date = this_date
@@ -357,7 +359,7 @@ class DayWalker(urwid.SimpleFocusListWalker):
         self._first_day = this_date
         self._collection = collection
 
-        super().__init__(list())
+        super().__init__([])
         self.ensure_date(this_date)
 
     def ensure_date(self, day):
@@ -470,7 +472,7 @@ class DayWalker(urwid.SimpleFocusListWalker):
 
         :type day: datetime.date
         """
-        event_list = list()
+        event_list = []
         date_header = DateHeader(
             day=day,
             dateformat=self._conf['locale']['longdateformat'],
@@ -555,7 +557,7 @@ class StaticDayWalker(DayWalker):
         return urwid.SimpleFocusListWalker.set_focus(self, position)
 
 
-class DateListBox(NListBox):
+class DateListBox(urwid.ListBox):
     """A ListBox container for a SimpleFocusListWalker, that contains one day
     worth of events"""
 
@@ -566,7 +568,7 @@ class DateListBox(NListBox):
         super().__init__(content)
 
     def __repr__(self):
-        return '<DateListBox {}>'.format(self.date)
+        return f'<DateListBox {self.date}>'
 
     __str__ = __repr__
 
@@ -696,7 +698,7 @@ class EventColumn(urwid.WidgetWrap):
         """
         if event.readonly:
             self.pane.window.alert(
-                ('alert', 'Calendar `{}` is read-only.'.format(event.calendar)))
+                ('alert', f'Calendar `{event.calendar}` is read-only.'))
             return
 
         if isinstance(event.start_local, dt.datetime):
@@ -811,7 +813,7 @@ class EventColumn(urwid.WidgetWrap):
 
         if event.event.readonly:
             self.pane.window.alert(
-                ('alert', 'Calendar {} is read-only.'.format(event.event.calendar)),
+                ('alert', f'Calendar {event.event.calendar} is read-only.'),
             )
             return
         status = self.delete_status(event.recuid)
@@ -960,21 +962,29 @@ class EventDisplay(urwid.WidgetWrap):
         if event.categories != '':
             lines.append(urwid.Text('Categories: ' + event.categories))
 
+        if event.url != '':
+            lines.append(urwid.Text('URL: ' + event.url))
+
+        if event.attendees != '':
+            lines.append(urwid.Text('Attendees:'))
+            for attendee in event.attendees.split(', '):
+                lines.append(urwid.Text(f'  - {attendee}'))
+
         # start and end time/date
         if event.allday:
             startstr = event.start_local.strftime(self._conf['locale']['dateformat'])
             endstr = event.end_local.strftime(self._conf['locale']['dateformat'])
         else:
             startstr = event.start_local.strftime(
-                '{} {}'.format(self._conf['locale']['dateformat'],
-                               self._conf['locale']['timeformat'])
+                f"{self._conf['locale']['dateformat']} "
+                f"{self._conf['locale']['timeformat']}"
             )
             if event.start_local.date == event.end_local.date:
                 endstr = event.end_local.strftime(self._conf['locale']['timeformat'])
             else:
                 endstr = event.end_local.strftime(
-                    '{} {}'.format(self._conf['locale']['dateformat'],
-                                   self._conf['locale']['timeformat'])
+                    f"{self._conf['locale']['dateformat']} "
+                    f"{self._conf['locale']['timeformat']}"
                 )
 
         if startstr == endstr:
@@ -1150,14 +1160,14 @@ class ClassicView(Pane):
         )
         pane = Pane(
             columns,
-            title="Search results for \"{}\" (Esc for backtrack)".format(search_term),
+            title=f"Search results for \"{search_term}\" (Esc for backtrack)",
         )
         pane._conf = self._conf
         columns.set_focus_column(1)
         self.window.open(pane)
 
     def render(self, size, focus=False):
-        rval = super(ClassicView, self).render(size, focus)
+        rval = super().render(size, focus)
         if self.init:
             # starting with today's events
             self.eventscolumn.current_date = dt.date.today()
@@ -1262,11 +1272,12 @@ def _add_calendar_colors(palette, collection):
     return palette
 
 
-def start_pane(pane, callback, program_info='', quit_keys=['q']):
+def start_pane(pane, callback, program_info='', quit_keys=None):
     """Open the user interface with the given initial pane."""
+    quit_keys = quit_keys or ['q']
 
     frame = Window(
-        footer=program_info + ' | {}: quit, ?: help'.format(quit_keys[0]),
+        footer=program_info + f' | {quit_keys[0]}: quit, ?: help',
         quit_keys=quit_keys,
     )
 
@@ -1290,7 +1301,7 @@ def start_pane(pane, callback, program_info='', quit_keys=['q']):
         def format(self, record):
             return (
                 super().format(record)[:30] + '... '
-                '[Press `{}` to view log]'.format(pane._conf['keybindings']['log'][0])
+                f"[Press `{pane._conf['keybindings']['log'][0]}` to view log]"
             )
 
     class LogPaneHandler(logging.Handler):
@@ -1319,7 +1330,8 @@ def start_pane(pane, callback, program_info='', quit_keys=['q']):
         frame, palette, unhandled_input=frame.on_key_press, pop_ups=True)
     frame.loop = loop
 
-    def redraw_today(loop, pane, meta={'last_today': None}):
+    def redraw_today(loop, pane, meta=None):
+        meta = meta or {'last_today': None}
         # XXX TODO this currently assumes, today moves forward by exactly one
         # day, but it could either move forward more (suspend-to-disk/ram) or
         # even move backwards

@@ -1,14 +1,14 @@
 khal
 ====
-.. image:: https://travis-ci.com/pimutils/khal.svg?branch=master
-    :target: https://travis-ci.com/pimutils/khal
+.. image:: https://github.com/pimutils/khal/actions/workflows/ci.yml/badge.svg?branch=master&event=push
+    :target: https://github.com/pimutils/khal/actions/workflows/ci.yml
 
 .. image:: https://codecov.io/github/pimutils/khal/coverage.svg?branch=master
   :target: https://codecov.io/github/pimutils/khal?branch=master
 
 .. image:: https://readthedocs.org/projects/khal/badge/?version=latest&style=flat
    :target: https://khal.readthedocs.io/en/latest/
-  
+
 *Khal* is a standards based CLI and terminal calendar program, able to synchronize
 with CalDAV_ servers through vdirsyncer_.
 
@@ -24,7 +24,7 @@ Features
 - fast and easy way to add new events
 - ikhal (interactive khal) lets you browse and edit calendars and events
 - no support for editing the timezones of events yet
-- works with python 3.5+
+- works with python 3.6+
 - khal should run on all major operating systems [1]_
 
 .. [1] except for Microsoft Windows
@@ -33,7 +33,7 @@ Feedback
 --------
 Please do provide feedback if *khal* works for you or even more importantly if
 it doesn't. The preferred way to get in contact (especially if something isn't
-working) is via github or via IRC (#pimutils on Freenode).
+working) is via github or via IRC (#pimutils on Libera.Chat).
 
 .. _vdir: https://vdirsyncer.readthedocs.org/en/stable/vdir.html
 .. _vdirsyncer: https://github.com/pimutils/vdirsyncer

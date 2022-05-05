@@ -26,7 +26,6 @@ import os
 import xdg.BaseDirectory
 from configobj import (ConfigObj, ConfigObjError, flatten_errors,
                        get_extra_values)
-from khal import __productname__
 
 try:
     # Available from configobj 5.1.0
@@ -34,11 +33,13 @@ try:
 except ModuleNotFoundError:
     from validate import Validator
 
+from khal import __productname__
+
 from .exceptions import (CannotParseConfigFileError, InvalidSettingsError,
                          NoConfigFile)
 from .utils import (config_checks, expand_db_path, expand_path,
                     get_color_from_vdir, get_vdir_type, is_color, is_timedelta,
-                    is_timezone, weeknumber_option, monthdisplay_option)
+                    is_timezone, monthdisplay_option, weeknumber_option)
 
 logger = logging.getLogger('khal')
 SPECPATH = os.path.join(os.path.dirname(__file__), 'khal.spec')
@@ -65,10 +66,10 @@ def find_configuration_file():
     for path in paths:
         if os.path.exists(path):
             logger.warning(
-                'Deprecation Warning: configuration file path `{}` will not be '
-                'supported from v0.11.0 onwards, please move it to '
-                '`{}/khal/config`.'
-                ''.format(path, xdg.BaseDirectory.xdg_config_dirs[0]))
+                f'Deprecation Warning: configuration file path `{path}` will '
+                'not be supported from v0.11.0 onwards, please move it to '
+                f'`{xdg.BaseDirectory.xdg_config_dirs[0]}/khal/config`.'
+            )
             return path
 
     return None
@@ -93,7 +94,7 @@ def get_config(
     if config_path is None or not os.path.exists(config_path):
         raise NoConfigFile()
 
-    logger.debug('using the config file at {}'.format(config_path))
+    logger.debug(f'using the config file at {config_path}')
 
     try:
         user_config = ConfigObj(config_path,
@@ -103,7 +104,7 @@ def get_config(
                                 )
     except ConfigObjError as error:
         logger.fatal('parsing the config file with the following error: '
-                     '{}'.format(error))
+                     f'{error}')
         logger.fatal('if you recently updated khal, the config file format '
                      'might have changed, in that case please consult the '
                      'CHANGELOG or other documentation')
@@ -125,15 +126,15 @@ def get_config(
         abort = True
         if isinstance(config_error, Exception):
             logger.fatal(
-                'config error:\n'
-                'in [{}] {}: {}'.format(section[0], subsection, config_error))
+                f'config error:\n'
+                f'in [{section[0]}] {subsection}: {config_error}')
         else:
             for key in config_error:
                 if isinstance(config_error[key], Exception):
-                    logger.fatal('config error:\nin {} {}: {}'.format(
-                        sectionize(section + [subsection]),
-                        key,
-                        str(config_error[key]))
+                    logger.fatal(
+                        'config error:\n'
+                        f'in {sectionize(section + [subsection])} {key}: '
+                        f'{str(config_error[key])}'
                     )
 
     if abort or not results:
@@ -144,17 +145,17 @@ def get_config(
     extras = get_extra_values(user_config)
     for section, value in extras:
         if section == ():
-            logger.warning('unknown section "{}" in config file'.format(value))
+            logger.warning(f'unknown section "{value}" in config file')
         else:
             section = sectionize(section)
             logger.warning(
-                'unknown key or subsection "{}" in section "{}"'.format(value, section))
+                f'unknown key or subsection "{value}" in section "{section}"')
 
             deprecated = [{'value': 'default_command', 'section': 'default'}]
             for d in deprecated:
                 if (value == d['value']) and (section == d['section']):
-                    logger.warning('Key "{}" in section "{}" was deprecated. '
-                                   'See the FAQ to find out when and why!'.format(value, section))
+                    logger.warning(f'Key "{value}" in section "{section}" was '
+                                   'deprecated. See the FAQ to find out when and why!')
     return user_config
 
 

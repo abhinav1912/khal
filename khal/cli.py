@@ -70,8 +70,8 @@ def multi_calendar_select(ctx, include_calendars, exclude_calendars):
         for cal_name in include_calendars:
             if cal_name not in ctx.obj['conf']['calendars']:
                 raise click.BadParameter(
-                    'Unknown calendar {}, run `khal printcalendars` to get a '
-                    'list of all configured calendars.'.format(cal_name)
+                    f'Unknown calendar {cal_name}, run `khal printcalendars` '
+                    'to get a list of all configured calendars.'
                 )
 
         selection.update(include_calendars)
@@ -107,8 +107,8 @@ def _select_one_calendar_callback(ctx, option, calendar):
 def _calendar_select_callback(ctx, option, calendar):
     if calendar and calendar not in ctx.obj['conf']['calendars']:
         raise click.BadParameter(
-            'Unknown calendar {}, run `khal printcalendars` to get a '
-            'list of all configured calendars.'.format(calendar)
+            f'Unknown calendar {calendar}, run `khal printcalendars` to get a '
+            'list of all configured calendars.'
         )
     return calendar
 
@@ -155,7 +155,7 @@ def global_options(f):
 def build_collection(conf, selection):
     """build and return a khalendar.CalendarCollection from the configuration"""
     try:
-        props = dict()
+        props = {}
         for name, cal in conf['calendars'].items():
             if selection is None or name in selection:
                 props[name] = {
@@ -185,7 +185,7 @@ def build_collection(conf, selection):
     return collection
 
 
-class _NoConfig(object):
+class _NoConfig:
     def __getitem__(self, key):
         logger.fatal(
             'Cannot find a config file. If you have no configuration file '
@@ -215,16 +215,16 @@ def prepare_context(ctx, config):
 def stringify_conf(conf):
     # since we have only two levels of recursion, a recursive function isn't
     # really worth it
-    out = list()
+    out = []
     for key, value in conf.items():
-        out.append('[{}]'.format(key))
+        out.append(f'[{key}]')
         for subkey, subvalue in value.items():
             if isinstance(subvalue, dict):
-                out.append('  [[{}]]'.format(subkey))
+                out.append(f'  [[{subkey}]]')
                 for subsubkey, subsubvalue in subvalue.items():
-                    out.append('    {}: {}'.format(subsubkey, subsubvalue))
+                    out.append(f'    {subsubkey}: {subsubvalue}')
             else:
-                out.append('  {}: {}'.format(subkey, subvalue))
+                out.append(f'  {subkey}: {subvalue}')
     return '\n'.join(out)
 
 
@@ -345,10 +345,12 @@ def _get_cli():
                   help=('The format to print the event.'))
     @click.option('--alarms', '-m',
                   help=('Alarm times for the new event as DELTAs comma separated'))
+    @click.option('--url', help=("URI for the event."))
     @click.argument('info', metavar='[START [END | DELTA] [TIMEZONE] [SUMMARY] [:: DESCRIPTION]]',
                     nargs=-1)
     @click.pass_context
-    def new(ctx, calendar, info, location, categories, repeat, until, alarms, format, interactive):
+    def new(ctx, calendar, info, location, categories, repeat, until, alarms, url, format,
+            interactive):
         '''Create a new event from arguments.
 
         START and END can be either dates, times or datetimes, please have a
@@ -394,6 +396,7 @@ def _get_cli():
                 env={"calendars": ctx.obj['conf']['calendars']},
                 until=until,
                 alarms=alarms,
+                url=url,
                 format=format,
             )
         except FatalError as error:
@@ -438,8 +441,15 @@ def _get_cli():
             if not ics:
                 ics_strs = (sys.stdin.read(),)
                 if not batch:
-                    if os.stat('/dev/tty').st_mode & stat.S_IFCHR > 0:
-                        sys.stdin = open('/dev/tty', 'r')
+
+                    def isatty(_file):
+                        try:
+                            return _file.isatty()
+                        except Exception:
+                            return False
+
+                    if isatty(sys.stdin) and os.stat('/dev/tty').st_mode & stat.S_IFCHR > 0:
+                        sys.stdin = open('/dev/tty')
                     else:
                         logger.warning('/dev/tty does not exist, importing might not work')
             else:
@@ -516,7 +526,7 @@ def _get_cli():
                     'longdatetimeformat', 'datetimeformat', 'longdateformat',
                     'dateformat', 'timeformat']:
                 dt_str = time.strftime(ctx.obj['conf']['locale'][strftime_format])
-                click.echo('{}: {}'.format(strftime_format, dt_str))
+                click.echo(f'{strftime_format}: {dt_str}')
         except FatalError as error:
             logger.debug(error, exc_info=True)
             logger.fatal(error)
@@ -565,7 +575,7 @@ def _get_cli():
                 multi_calendar_select(ctx, include_calendar, exclude_calendar)
             )
             events = sorted(collection.search(search_string))
-            event_column = list()
+            event_column = []
             term_width, _ = get_terminal_size()
             now = dt.datetime.now()
             env = {"calendars": ctx.obj['conf']['calendars']}

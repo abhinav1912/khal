@@ -22,11 +22,13 @@
 """collection of icalendar helper functions"""
 
 import datetime as dt
+import logging
+from collections import defaultdict
+from hashlib import sha256
+
 import dateutil.rrule
 import icalendar
-import logging
 import pytz
-from collections import defaultdict
 
 from .exceptions import UnsupportedRecurrence
 from .parse_datetime import guesstimedeltafstr, rrulefstr
@@ -62,6 +64,12 @@ def split_ics(ics, random_uid=False, default_timezone=None):
             tzs[key] = item
 
         if item.name == 'VEVENT':
+            if 'UID' not in item:
+                logger.warning(
+                    f"Event with summary '{item['SUMMARY']}' doesn't have a unique ID."
+                    "A generated ID will be used instead."
+                )
+                item['UID'] = sha256(item.to_ical()).hexdigest()
             events_grouped[item['UID']].append(item)
         else:
             continue
@@ -71,7 +79,7 @@ def split_ics(ics, random_uid=False, default_timezone=None):
 
 def new_event(locale, dtstart=None, dtend=None, summary=None, timezone=None,
               allday=False, description=None, location=None, categories=None,
-              repeat=None, until=None, alarms=None):
+              repeat=None, until=None, alarms=None, url=None):
     """create a new event
 
     :param dtstart: starttime of that event
@@ -87,6 +95,8 @@ def new_event(locale, dtstart=None, dtend=None, summary=None, timezone=None,
     :param allday: if set to True, we will not transform dtstart and dtend to
         datetime
     :type allday: bool
+    :param url: url of the event
+    :type url: string
     :returns: event
     :rtype: icalendar.Event
     """
@@ -116,8 +126,10 @@ def new_event(locale, dtstart=None, dtend=None, summary=None, timezone=None,
         event.add('location', location)
     if categories:
         event.add('categories', categories)
+    if url:
+        event.add('url', icalendar.vUri(url))
     if repeat and repeat != "none":
-        rrule = rrulefstr(repeat, until, locale)
+        rrule = rrulefstr(repeat, until, locale, dtstart.tzinfo)
         event.add('rrule', rrule)
     if alarms:
         for alarm in alarms.split(","):
@@ -174,8 +186,8 @@ def ics_from_list(events, tzs, random_uid=False, default_timezone=None):
                 if datetime_.tzinfo is None and 'TZID' in item.params and \
                         item.params['TZID'] not in missing_tz:
                     logger.warning(
-                        'Cannot find timezone `{}` in .ics file, using default timezone. '
-                        'This can lead to erroneous time shifts'.format(item.params['TZID'])
+                        f"Cannot find timezone `{item.params['TZID']}` in .ics file, "
+                        "using default timezone. This can lead to erroneous time shifts"
                     )
                     missing_tz.add(item.params['TZID'])
                 elif datetime_.tzinfo and datetime_.tzinfo != pytz.UTC and \
@@ -187,8 +199,8 @@ def ics_from_list(events, tzs, random_uid=False, default_timezone=None):
             calendar.add_component(tzs[str(tzid)])
         else:
             logger.warning(
-                'Cannot find timezone `{}` in .ics file, this could be a bug, '
-                'please report this issue at http://github.com/pimutils/khal/.'.format(tzid))
+                f'Cannot find timezone `{tzid}` in .ics file, this could be a bug, '
+                'please report this issue at http://github.com/pimutils/khal/.')
     for sub_event in events:
         calendar.add_component(sub_event)
     return calendar.to_ical().decode('utf-8')
@@ -273,19 +285,19 @@ def expand(vevent, href=''):
 
             if testuntil < teststart:
                 logger.warning(
-                    '{0}: Unsupported recurrence. UNTIL is before DTSTART.\n'
-                    'This event will not be available in khal.'.format(href))
+                    f'{href}: Unsupported recurrence. UNTIL is before DTSTART.\n'
+                    'This event will not be available in khal.')
                 return False
 
         if rrule.count() == 0:
             logger.warning(
-                '{0}: Recurrence defined but will never occur.\n'
-                'This event will not be available in khal.'.format(href))
+                f'{href}: Recurrence defined but will never occur.\n'
+                'This event will not be available in khal.')
             return False
 
         rrule = map(sanitize_datetime, rrule)
 
-        logger.debug('calculating recurrence dates for {}, this might take some time.'.format(href))
+        logger.debug(f'calculating recurrence dates for {href}, this might take some time.')
 
         # RRULE and RDATE may specify the same date twice, it is recommended by
         # the RFC to consider this as only one instance
@@ -318,8 +330,8 @@ def expand(vevent, href=''):
                 dtstartl.remove(date)
             except KeyError:
                 logger.warning(
-                    'In event {}, excluded instance starting at {} not found, '
-                    'event might be invalid.'.format(href, date))
+                    f'In event {href}, excluded instance starting at {date} '
+                    'not found, event might be invalid.')
 
     dtstartend = [(start, start + duration) for start in dtstartl]
     # not necessary, but I prefer deterministic output
@@ -367,9 +379,9 @@ def sanitize(vevent, default_timezone, href='', calendar=''):
             value = default_timezone.localize(vevent.pop(prop).dt)
             vevent.add(prop, value)
             logger.warning(
-                "{} localized in invalid or incomprehensible timezone `{}` in {}/{}. "
-                "This could lead to this event being wrongly displayed."
-                "".format(prop, timezone, calendar, href)
+                f"{prop} localized in invalid or incomprehensible timezone "
+                f"`{timezone}` in {calendar}/{href}. This could lead to this "
+                "event being wrongly displayed."
             )
 
     vdtstart = vevent.pop('DTSTART', None)
@@ -409,8 +421,9 @@ def sanitize_timerange(dtstart, dtend, duration=None):
 
     if dtend is None and duration is None:
         if isinstance(dtstart, dt.datetime):
-            dtstart = dtstart.date()
-        dtend = dtstart + dt.timedelta(days=1)
+            dtend = dtstart + dt.timedelta(hours=1)
+        else:
+            dtend = dtstart + dt.timedelta(days=1)
     elif dtend is not None:
         if dtend < dtstart:
             raise ValueError('The event\'s end time (DTEND) is older than '
@@ -420,7 +433,10 @@ def sanitize_timerange(dtstart, dtend, duration=None):
                 "Event start time and end time are the same. "
                 "Assuming the event's duration is one hour."
             )
-            dtend += dt.timedelta(hours=1)
+            if isinstance(dtstart, dt.datetime):
+                dtend += dt.timedelta(hours=1)
+            else:
+                dtend += dt.timedelta(days=1)
 
     return dtstart, dtend
 
@@ -457,7 +473,7 @@ def _get_all_properties(vevent, prop):
     :type prop: str
     """
     if prop not in vevent:
-        return list()
+        return []
     if isinstance(vevent[prop], list):
         rdates = [leaf.dt for tree in vevent[prop] for leaf in tree.dts]
     else:
