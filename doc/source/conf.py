@@ -12,8 +12,9 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import khal
 from configobj import ConfigObj
+
+import khal
 
 try:
     # Available from configobj 5.1.0

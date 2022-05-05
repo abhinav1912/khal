@@ -3,7 +3,6 @@ import os.path
 
 import pytest
 from tzlocal import get_localzone
-from validate import VdtValueError
 
 from khal.settings import get_config
 from khal.settings.exceptions import (CannotParseConfigFileError,
